@@ -16,9 +16,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Prototype boundaries
 
-This version uses a deterministic mock generation route and requires no API key.
-It intentionally does not include authentication, persistence, uploads, image
-generation, or a real LLM provider.
+This version uses local Ollama with `gemma4:latest` by default and requires no
+hosted API key. A deterministic mock provider remains available for development
+and fallback. It intentionally does not include authentication, persistence,
+uploads, or image generation.
+
+See [docs/ollama-integration.md](docs/ollama-integration.md) for configuration,
+fallback behavior, and integration-test instructions.
 
 ## Commands
 
@@ -27,8 +31,10 @@ npm run dev
 npm run build
 npm run start
 npm run lint
+npm run typecheck
 npm run test
 npm run test:e2e
+npm run test:ollama
 npm run test:all
 ```
 

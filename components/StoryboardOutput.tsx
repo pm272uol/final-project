@@ -1,9 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import type { StoryboardPackage } from "@/types/storyboard";
+import type {
+  GenerationMetadata,
+  StoryboardPackage,
+} from "@/types/storyboard";
 
-export function StoryboardOutput({ data }: { data: StoryboardPackage }) {
+export function StoryboardOutput({
+  data,
+  metadata,
+}: {
+  data: StoryboardPackage;
+  metadata?: GenerationMetadata;
+}) {
   const [copyStatus, setCopyStatus] = useState("");
 
   function announceCopy(message: string) {
@@ -21,16 +30,25 @@ export function StoryboardOutput({ data }: { data: StoryboardPackage }) {
       </p>
       <header className="border-b-[1.5px] border-ink pb-7">
         <div className="mb-4 flex flex-wrap gap-2">
-          {[data.genre, data.tone, data.visualStyle, data.estimatedDuration].map(
-            (item) => (
+          {[
+            data.genre,
+            data.tone,
+            data.visualStyle,
+            data.estimatedDuration,
+            metadata
+              ? `${metadata.provider}: ${metadata.model}`
+              : "mock engine",
+            metadata?.fallbackUsed ? "mock fallback" : null,
+          ]
+            .filter(Boolean)
+            .map((item) => (
               <span
                 key={item}
                 className="mono border border-ink bg-paper px-2.5 py-1 text-[10px] uppercase tracking-wider"
               >
                 {item}
               </span>
-            ),
-          )}
+            ))}
         </div>
         <p className="mono mb-2 text-xs uppercase tracking-[0.16em] text-rust">
           Generated treatment
@@ -39,6 +57,7 @@ export function StoryboardOutput({ data }: { data: StoryboardPackage }) {
         <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink/70">
           {data.logline}
         </p>
+        {metadata ? <GenerationDetails metadata={metadata} /> : null}
       </header>
 
       <section>
@@ -93,6 +112,54 @@ export function StoryboardOutput({ data }: { data: StoryboardPackage }) {
           </InfoCard>
         </div>
       </section>
+    </div>
+  );
+}
+
+function GenerationDetails({
+  metadata,
+}: {
+  metadata: GenerationMetadata;
+}) {
+  return (
+    <dl
+      className="mt-6 grid gap-3 border-[1.5px] border-ink bg-paper/80 p-4 text-xs sm:grid-cols-4"
+      data-testid="generation-metadata"
+    >
+      <MetadataItem label="Provider">
+        {metadata.provider}
+        {metadata.fallbackUsed ? " (fallback)" : ""}
+      </MetadataItem>
+      <MetadataItem label="Model">{metadata.model}</MetadataItem>
+      <MetadataItem label="Duration">{metadata.durationMs}ms</MetadataItem>
+      <MetadataItem label="Tokens">
+        {metadata.promptTokens ?? "n/a"} / {metadata.completionTokens ?? "n/a"}
+      </MetadataItem>
+      {metadata.fallbackReason ? (
+        <div className="border-t border-ink/15 pt-3 sm:col-span-4">
+          <dt className="mono text-[10px] uppercase tracking-wider text-rust">
+            Fallback reason
+          </dt>
+          <dd className="mt-1 text-ink/70">{metadata.fallbackReason}</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
+function MetadataItem({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="mono text-[10px] uppercase tracking-wider text-rust">
+        {label}
+      </dt>
+      <dd className="mt-1 font-bold">{children}</dd>
     </div>
   );
 }

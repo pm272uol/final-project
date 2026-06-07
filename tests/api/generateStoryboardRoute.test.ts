@@ -1,16 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/generate-storyboard/route";
+import type { AppConfig } from "@/lib/config";
 import { createGenerateStoryboardResponse } from "@/lib/generateStoryboard";
 import { createMockStoryboard } from "@/lib/mockStoryboard";
+import {
+  StoryboardProviderError,
+  type StoryboardProvider,
+} from "@/lib/providers/types";
 import { validInput } from "../fixtures";
 
 describe("POST /api/generate-storyboard", () => {
+  beforeEach(() => {
+    vi.stubEnv("STORYBOARD_PROVIDER", "mock");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("returns a scene-aware mock storyboard for valid input", async () => {
     const response = await POST(jsonRequest(validInput));
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body.mode).toBe("mock");
+    expect(body.metadata.provider).toBe("mock");
+    expect(body.metadata.fallbackUsed).toBe(false);
     expect(body.storyboard.title).toBe("The Frame Of Tomorrow");
     expect(body.storyboard.storyboard).toHaveLength(validInput.panelCount);
   });
@@ -42,13 +57,15 @@ describe("POST /api/generate-storyboard", () => {
   });
 
   it("rejects generated output that fails the storyboard schema", async () => {
+    const brokenStoryboard = createMockStoryboard(validInput);
+    brokenStoryboard.storyboard[0].imagePrompt = "";
+    brokenStoryboard.storyboard.pop();
+
     const response = await createGenerateStoryboardResponse(
       validInput,
-      (input) => {
-        const storyboard = createMockStoryboard(input);
-        storyboard.storyboard[0].imagePrompt = "";
-        storyboard.storyboard.pop();
-        return storyboard;
+      {
+        provider: providerReturning(brokenStoryboard),
+        config: testConfig({ mockFallback: false }),
       },
     );
     const body = await response.json();
@@ -63,6 +80,57 @@ describe("POST /api/generate-storyboard", () => {
       ]),
     );
   });
+
+  it("falls back to mock output when Ollama is unavailable and fallback is enabled", async () => {
+    const response = await createGenerateStoryboardResponse(validInput, {
+      provider: providerThrowing(
+        new StoryboardProviderError(
+          "PROVIDER_UNAVAILABLE",
+          "Could not connect to Ollama.",
+        ),
+      ),
+      config: testConfig({ mockFallback: true }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.mode).toBe("mock");
+    expect(body.metadata.fallbackUsed).toBe(true);
+    expect(body.metadata.fallbackReason).toContain("Could not connect");
+  });
+
+  it("returns provider errors when fallback is disabled", async () => {
+    const response = await createGenerateStoryboardResponse(validInput, {
+      provider: providerThrowing(
+        new StoryboardProviderError(
+          "MODEL_NOT_FOUND",
+          "Ollama model gemma4:latest is not installed.",
+        ),
+      ),
+      config: testConfig({ mockFallback: false }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.code).toBe("MODEL_NOT_FOUND");
+  });
+
+  it("enforces the configured request size limit in the route", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/generate-storyboard", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": "20000",
+        },
+        body: JSON.stringify(validInput),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(413);
+    expect(body.code).toBe("REQUEST_TOO_LARGE");
+  });
 });
 
 function jsonRequest(body: unknown) {
@@ -71,4 +139,46 @@ function jsonRequest(body: unknown) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+function providerReturning(
+  storyboard: ReturnType<typeof createMockStoryboard>,
+): StoryboardProvider {
+  return {
+    name: "ollama",
+    model: "gemma4:latest",
+    async generate() {
+      return {
+        storyboard,
+        metadata: {
+          mode: "ollama",
+          provider: "ollama",
+          model: "gemma4:latest",
+          durationMs: 1,
+        },
+      };
+    },
+  };
+}
+
+function providerThrowing(error: Error): StoryboardProvider {
+  return {
+    name: "ollama",
+    model: "gemma4:latest",
+    async generate() {
+      throw error;
+    },
+  };
+}
+
+function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+  return {
+    provider: "ollama" as const,
+    ollamaBaseUrl: "http://127.0.0.1:11434",
+    ollamaModel: "gemma4:latest",
+    ollamaTimeoutMs: 180_000,
+    mockFallback: true,
+    maxRequestBytes: 16_384,
+    ...overrides,
+  };
 }

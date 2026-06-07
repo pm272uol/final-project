@@ -1,17 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { JsonPreview } from "@/components/JsonPreview";
 import { SceneInputForm } from "@/components/SceneInputForm";
 import { StoryboardOutput } from "@/components/StoryboardOutput";
 import { evaluateStoryboard } from "@/lib/evaluator";
 import { DEFAULT_INPUT } from "@/lib/storyboardOptions";
-import type { StoryboardInput, StoryboardPackage } from "@/types/storyboard";
+import type {
+  GenerationMetadata,
+  StoryboardGenerationResponse,
+  StoryboardInput,
+  StoryboardPackage,
+} from "@/types/storyboard";
 
 export default function Home() {
   const [input, setInput] = useState<StoryboardInput>(DEFAULT_INPUT);
   const [storyboard, setStoryboard] = useState<StoryboardPackage | null>(null);
+  const [generationMetadata, setGenerationMetadata] =
+    useState<GenerationMetadata | null>(null);
   const [requestedPanelCount, setRequestedPanelCount] = useState(
     DEFAULT_INPUT.panelCount,
   );
@@ -21,6 +28,7 @@ export default function Home() {
   const [statusMessage, setStatusMessage] = useState(
     "Ready to generate a storyboard.",
   );
+  const generationController = useRef<AbortController | null>(null);
 
   const evaluation = useMemo(
     () =>
@@ -35,12 +43,15 @@ export default function Home() {
     setError("");
     setErrorDetails([]);
     setStatusMessage("Generating storyboard. Please wait.");
+    const controller = new AbortController();
+    generationController.current = controller;
 
     try {
       const response = await fetch("/api/generate-storyboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -53,23 +64,34 @@ export default function Home() {
         );
       }
 
-      const data = (await response.json()) as {
-        mode: "mock";
-        storyboard: StoryboardPackage;
-      };
+      const data = (await response.json()) as StoryboardGenerationResponse;
       setStoryboard(data.storyboard);
+      setGenerationMetadata(data.metadata);
       setRequestedPanelCount(input.panelCount);
       setStatusMessage(
-        `Storyboard generated successfully with ${data.storyboard.storyboard.length} panels.`,
+        `Storyboard generated successfully with ${data.storyboard.storyboard.length} panels using ${data.metadata.provider}.`,
       );
     } catch (caught) {
-      const message =
-        caught instanceof Error ? caught.message : "Something went wrong.";
+      const cancelled = controller.signal.aborted;
+      const message = cancelled
+        ? "Storyboard generation was cancelled."
+        : caught instanceof Error
+          ? caught.message
+          : "Something went wrong.";
       setError(message);
-      setStatusMessage(`Generation failed. ${message}`);
+      setStatusMessage(
+        cancelled ? "Generation cancelled." : `Generation failed. ${message}`,
+      );
     } finally {
+      if (generationController.current === controller) {
+        generationController.current = null;
+      }
       setLoading(false);
     }
+  }
+
+  function cancelGeneration() {
+    generationController.current?.abort();
   }
 
   return (
@@ -93,7 +115,7 @@ export default function Home() {
           </div>
           <div className="mono flex items-center gap-2 text-[10px] uppercase tracking-wider">
             <span className="h-2 w-2 bg-rust" />
-            Mock engine / v0.1
+            Ollama local / mock fallback
           </div>
         </div>
       </nav>
@@ -111,7 +133,8 @@ export default function Home() {
             <span className="mt-2 block h-[1.5px] w-12 shrink-0 bg-ink" />
             <p className="text-sm leading-relaxed text-ink/65 sm:text-base">
               Shape story beats, camera direction, visual prompts, continuity,
-              and production notes. No model key required in this prototype.
+              and production notes using local Ollama with a deterministic mock
+              fallback.
             </p>
           </div>
         </div>
@@ -130,6 +153,7 @@ export default function Home() {
             loading={loading}
             onChange={setInput}
             onSubmit={generate}
+            onCancel={cancelGeneration}
           />
           {error ? (
             <div
@@ -159,7 +183,10 @@ export default function Home() {
         >
           {storyboard && evaluation ? (
             <div className="space-y-8">
-              <StoryboardOutput data={storyboard} />
+              <StoryboardOutput
+                data={storyboard}
+                metadata={generationMetadata ?? undefined}
+              />
               <EvaluationPanel result={evaluation} />
               <JsonPreview data={storyboard} />
             </div>

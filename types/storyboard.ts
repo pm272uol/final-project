@@ -98,3 +98,22 @@ export type EvaluationResult = {
   passed: boolean;
   checks: EvaluationCheck[];
 };
+
+export type GenerationMode = "ollama" | "mock";
+
+export type GenerationMetadata = {
+  mode: GenerationMode;
+  provider: "ollama" | "mock";
+  model: string;
+  durationMs: number;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
+  promptTokens?: number;
+  completionTokens?: number;
+};
+
+export type StoryboardGenerationResponse = {
+  mode: GenerationMode;
+  storyboard: StoryboardPackage;
+  metadata: GenerationMetadata;
+};

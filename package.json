@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:ollama": "OLLAMA_INTEGRATION=true vitest run tests/integration/ollamaReal.test.ts",
     "test:all": "npm run test && npm run test:e2e"
   },
   "dependencies": {

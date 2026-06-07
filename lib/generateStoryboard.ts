@@ -1,18 +1,28 @@
 import { NextResponse } from "next/server";
-import { createMockStoryboard } from "@/lib/mockStoryboard";
-import { buildStoryboardPrompt } from "@/lib/promptBuilder";
+import { getAppConfig, type AppConfig } from "@/lib/config";
+import { MockStoryboardProvider } from "@/lib/providers/mockProvider";
+import { createStoryboardProvider } from "@/lib/providers/providerFactory";
+import {
+  StoryboardProviderError,
+  type StoryboardProvider,
+} from "@/lib/providers/types";
 import {
   validateStoryboardInput,
   validateStoryboardPackage,
 } from "@/lib/storyboardSchema";
-import type { StoryboardInput } from "@/types/storyboard";
 
-type StoryboardGenerator = (input: StoryboardInput) => unknown;
+type GenerateStoryboardOptions = {
+  provider?: StoryboardProvider;
+  fallbackProvider?: StoryboardProvider;
+  config?: AppConfig;
+  signal?: AbortSignal;
+};
 
 export async function createGenerateStoryboardResponse(
   body: unknown,
-  generateStoryboard: StoryboardGenerator = createMockStoryboard,
+  options: GenerateStoryboardOptions = {},
 ) {
+  const config = options.config ?? getAppConfig();
   const inputResult = validateStoryboardInput(body);
 
   if (!inputResult.success) {
@@ -27,16 +37,36 @@ export async function createGenerateStoryboardResponse(
     );
   }
 
-  // Build and retain the future model instruction while mock mode is active.
-  buildStoryboardPrompt(inputResult.data);
+  const provider = options.provider ?? createStoryboardProvider(config);
+  const fallbackProvider =
+    options.fallbackProvider ?? new MockStoryboardProvider();
+  let providerResult;
+  let fallbackUsed = false;
+  let fallbackReason: string | undefined;
 
-  if (process.env.NODE_ENV !== "test") {
-    await new Promise((resolve) => setTimeout(resolve, 650));
+  try {
+    providerResult = await provider.generate(inputResult.data, {
+      signal: options.signal,
+    });
+  } catch (error) {
+    if (
+      config.mockFallback &&
+      provider.name !== "mock" &&
+      !isAbortError(error, options.signal)
+    ) {
+      fallbackUsed = true;
+      fallbackReason =
+        error instanceof Error ? error.message : "Unknown provider failure";
+      providerResult = await fallbackProvider.generate(inputResult.data, {
+        signal: options.signal,
+      });
+    } else {
+      return providerErrorResponse(error);
+    }
   }
 
-  const generatedStoryboard = generateStoryboard(inputResult.data);
   const outputResult = validateStoryboardPackage(
-    generatedStoryboard,
+    providerResult.storyboard,
     inputResult.data.panelCount,
   );
 
@@ -53,7 +83,47 @@ export async function createGenerateStoryboardResponse(
   }
 
   return NextResponse.json({
-    mode: "mock",
+    mode: providerResult.metadata.mode,
     storyboard: outputResult.data,
+    metadata: {
+      ...providerResult.metadata,
+      fallbackUsed,
+      fallbackReason,
+    },
   });
+}
+
+function providerErrorResponse(error: unknown) {
+  const providerError =
+    error instanceof StoryboardProviderError
+      ? error
+      : new StoryboardProviderError(
+          "PROVIDER_REQUEST_FAILED",
+          "The storyboard provider failed unexpectedly.",
+          error,
+        );
+  const statusByCode = {
+    PROVIDER_ABORTED: 499,
+    PROVIDER_TIMEOUT: 504,
+    PROVIDER_UNAVAILABLE: 503,
+    MODEL_NOT_FOUND: 503,
+    INVALID_MODEL_RESPONSE: 502,
+    PROVIDER_REQUEST_FAILED: 502,
+  } as const;
+
+  return NextResponse.json(
+    {
+      error: providerError.message,
+      code: providerError.code,
+    },
+    { status: statusByCode[providerError.code] },
+  );
+}
+
+function isAbortError(error: unknown, requestSignal?: AbortSignal) {
+  return (
+    requestSignal?.aborted ||
+    (error instanceof StoryboardProviderError &&
+      error.code === "PROVIDER_ABORTED")
+  );
 }

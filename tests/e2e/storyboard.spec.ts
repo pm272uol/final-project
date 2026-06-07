@@ -17,7 +17,7 @@ test("generates a complete scene-aware storyboard package", async ({ page }) => 
   await page.getByTestId("generate-button").click();
 
   await expect(page.getByTestId("generation-status")).toContainText(
-    "Storyboard generated successfully with 4 panels.",
+    "Storyboard generated successfully with 4 panels using mock.",
   );
   await expect(
     page.getByRole("heading", { name: "The Frame Of Tomorrow" }),
@@ -28,6 +28,9 @@ test("generates a complete scene-aware storyboard package", async ({ page }) => 
   );
   await expect(page.getByTestId("storyboard-output")).not.toContainText(
     "Astronaut",
+  );
+  await expect(page.getByTestId("storyboard-output")).toContainText(
+    "deterministic-scene-aware-v1",
   );
   await expect(
     page.getByRole("heading", { name: "Production ready" }),

@@ -9,7 +9,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/unit/**/*.test.ts", "tests/api/**/*.test.ts"],
+    include: [
+      "tests/unit/**/*.test.ts",
+      "tests/api/**/*.test.ts",
+      "tests/integration/**/*.test.ts",
+    ],
     coverage: {
       reporter: ["text", "html"],
     },

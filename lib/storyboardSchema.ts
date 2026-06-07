@@ -11,7 +11,11 @@ import {
 import type { StoryboardInput, StoryboardPackage } from "@/types/storyboard";
 
 export const storyboardInputSchema = z.object({
-  sceneIdea: z.string().trim().min(1, "Scene idea is required."),
+  sceneIdea: z
+    .string()
+    .trim()
+    .min(1, "Scene idea is required.")
+    .max(1_200, "Scene idea must be 1,200 characters or fewer."),
   genre: z.enum(GENRES),
   visualStyle: z.enum(VISUAL_STYLES),
   duration: z.enum(DURATIONS),

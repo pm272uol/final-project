@@ -15,6 +15,7 @@ type Props = {
   loading: boolean;
   onChange: (input: StoryboardInput) => void;
   onSubmit: () => void;
+  onCancel: () => void;
 };
 
 export function SceneInputForm({
@@ -22,6 +23,7 @@ export function SceneInputForm({
   loading,
   onChange,
   onSubmit,
+  onCancel,
 }: Props) {
   const update = <Key extends keyof StoryboardInput>(
     key: Key,
@@ -131,6 +133,15 @@ export function SceneInputForm({
           {loading ? "•••" : "→"}
         </span>
       </button>
+      {loading ? (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="w-full border-[1.5px] border-ink bg-paper px-5 py-3 text-sm font-bold transition hover:bg-rust hover:text-white"
+        >
+          Cancel generation
+        </button>
+      ) : null}
     </form>
   );
 }
