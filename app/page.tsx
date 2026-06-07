@@ -6,7 +6,7 @@ import { JsonPreview } from "@/components/JsonPreview";
 import { SceneInputForm } from "@/components/SceneInputForm";
 import { StoryboardOutput } from "@/components/StoryboardOutput";
 import { evaluateStoryboard } from "@/lib/evaluator";
-import { DEFAULT_INPUT } from "@/lib/storyboardSchema";
+import { DEFAULT_INPUT } from "@/lib/storyboardOptions";
 import type { StoryboardInput, StoryboardPackage } from "@/types/storyboard";
 
 export default function Home() {
@@ -17,6 +17,10 @@ export default function Home() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorDetails, setErrorDetails] = useState<string[]>([]);
+  const [statusMessage, setStatusMessage] = useState(
+    "Ready to generate a storyboard.",
+  );
 
   const evaluation = useMemo(
     () =>
@@ -29,6 +33,8 @@ export default function Home() {
   async function generate() {
     setLoading(true);
     setError("");
+    setErrorDetails([]);
+    setStatusMessage("Generating storyboard. Please wait.");
 
     try {
       const response = await fetch("/api/generate-storyboard", {
@@ -37,7 +43,15 @@ export default function Home() {
         body: JSON.stringify(input),
       });
 
-      if (!response.ok) throw new Error("The storyboard could not be generated.");
+      if (!response.ok) {
+        const failure = (await response.json().catch(() => null)) as
+          | { error?: string; validationIssues?: string[] }
+          | null;
+        setErrorDetails(failure?.validationIssues ?? []);
+        throw new Error(
+          failure?.error ?? "The storyboard could not be generated.",
+        );
+      }
 
       const data = (await response.json()) as {
         mode: "mock";
@@ -45,10 +59,14 @@ export default function Home() {
       };
       setStoryboard(data.storyboard);
       setRequestedPanelCount(input.panelCount);
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Something went wrong.",
+      setStatusMessage(
+        `Storyboard generated successfully with ${data.storyboard.storyboard.length} panels.`,
       );
+    } catch (caught) {
+      const message =
+        caught instanceof Error ? caught.message : "Something went wrong.";
+      setError(message);
+      setStatusMessage(`Generation failed. ${message}`);
     } finally {
       setLoading(false);
     }
@@ -56,6 +74,15 @@ export default function Home() {
 
   return (
     <main className="noise min-h-screen">
+      <p
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="generation-status"
+      >
+        {statusMessage}
+      </p>
       <nav className="border-b-[1.5px] border-ink bg-paper/90 px-5 py-3 backdrop-blur sm:px-8">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between">
           <div className="flex items-center gap-3">
@@ -105,13 +132,31 @@ export default function Home() {
             onSubmit={generate}
           />
           {error ? (
-            <p role="alert" className="mt-5 border border-rust bg-rust/10 p-3 text-sm">
-              {error}
-            </p>
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="mt-5 border border-rust bg-rust/10 p-3 text-sm"
+              data-testid="generation-error"
+            >
+              <p className="font-bold">{error}</p>
+              {errorDetails.length > 0 ? (
+                <ul className="mt-3 space-y-1 border-t border-rust/30 pt-3 text-xs leading-relaxed">
+                  {errorDetails.map((detail) => (
+                    <li key={detail} className="grid grid-cols-[0.75rem_1fr] gap-1">
+                      <span aria-hidden="true">•</span>
+                      <span>{detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
         </aside>
 
-        <section className="min-h-[70vh] p-5 sm:p-8 lg:p-10">
+        <section
+          className="min-w-0 min-h-[70vh] p-5 sm:p-8 lg:p-10"
+          aria-busy={loading}
+        >
           {storyboard && evaluation ? (
             <div className="space-y-8">
               <StoryboardOutput data={storyboard} />

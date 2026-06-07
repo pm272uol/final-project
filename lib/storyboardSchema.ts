@@ -1,52 +1,180 @@
-import type { StoryboardInput } from "@/types/storyboard";
+import { z } from "zod";
+import {
+  CHARACTER_ROLES,
+  DURATIONS,
+  GENRES,
+  SHOT_TYPES,
+  TARGET_FORMATS,
+  TONES,
+  VISUAL_STYLES,
+} from "@/lib/storyboardOptions";
+import type { StoryboardInput, StoryboardPackage } from "@/types/storyboard";
 
-export const GENRES: StoryboardInput["genre"][] = [
-  "Drama", "Comedy", "Sci-fi", "Fantasy", "Horror", "Thriller",
-  "Romance", "Adventure", "Experimental",
-];
+export const storyboardInputSchema = z.object({
+  sceneIdea: z.string().trim().min(1, "Scene idea is required."),
+  genre: z.enum(GENRES),
+  visualStyle: z.enum(VISUAL_STYLES),
+  duration: z.enum(DURATIONS),
+  panelCount: z.union([
+    z.literal(4),
+    z.literal(6),
+    z.literal(8),
+    z.literal(10),
+  ]),
+  tone: z.enum(TONES),
+  targetFormat: z.enum(TARGET_FORMATS),
+}).strict() satisfies z.ZodType<StoryboardInput>;
 
-export const VISUAL_STYLES: StoryboardInput["visualStyle"][] = [
-  "Cinematic live action", "Indie short film", "Animated short",
-  "Documentary style", "Noir", "Surreal", "Minimalist",
-];
+export const characterSchema = z.object({
+  name: z.string().trim().min(1, "Character name is required."),
+  role: z.enum(CHARACTER_ROLES),
+  visualDescription: z
+    .string()
+    .trim()
+    .min(1, "Character visual description is required."),
+  personality: z.string().trim().min(1, "Character personality is required."),
+}).strict();
 
-export const DURATIONS: StoryboardInput["duration"][] = [
-  "30 seconds", "60 seconds", "90 seconds", "2 minutes", "3 minutes",
-];
+export const locationSchema = z.object({
+  name: z.string().trim().min(1, "Location name is required."),
+  description: z.string().trim().min(1, "Location description is required."),
+  mood: z.string().trim().min(1, "Location mood is required."),
+}).strict();
 
-export const PANEL_COUNTS: StoryboardInput["panelCount"][] = [4, 6, 8, 10];
+export const storyboardPanelSchema = z.object({
+  panelNumber: z.number().int().positive(),
+  storyBeat: z.string().trim().min(1, "Story beat is required."),
+  shotType: z.enum(SHOT_TYPES),
+  cameraDirection: z.string().trim().min(1, "Camera direction is required."),
+  action: z.string().trim().min(1, "Action is required."),
+  setting: z.string().trim().min(1, "Setting is required."),
+  imagePrompt: z.string().trim().min(1, "Image prompt is required."),
+  negativePrompt: z.string().trim().min(1, "Negative prompt is required."),
+  dialogueOrNarration: z
+    .string()
+    .trim()
+    .min(1, "Dialogue or narration is required."),
+  productionNote: z.string().trim().min(1, "Production note is required."),
+}).strict();
 
-export const TONES: StoryboardInput["tone"][] = [
-  "Warm", "Tense", "Funny", "Melancholic", "Mysterious",
-  "Hopeful", "Dark", "Dreamlike",
-];
+export const storyboardPackageSchema = z.object({
+  title: z.string().trim().min(1, "Title is required."),
+  logline: z.string().trim().min(1, "Logline is required."),
+  genre: z.string().trim().min(1, "Genre is required."),
+  tone: z.string().trim().min(1, "Tone is required."),
+  visualStyle: z.string().trim().min(1, "Visual style is required."),
+  estimatedDuration: z
+    .string()
+    .trim()
+    .min(1, "Estimated duration is required."),
+  characters: z
+    .array(characterSchema)
+    .min(1, "At least one character is required."),
+  locations: z.array(locationSchema).min(1, "At least one location is required."),
+  storyboard: z
+    .array(storyboardPanelSchema)
+    .min(1, "At least one storyboard panel is required."),
+  continuityNotes: z
+    .array(z.string().trim().min(1))
+    .min(1, "At least one continuity note is required."),
+  productionNotes: z
+    .array(z.string().trim().min(1))
+    .min(1, "At least one production note is required."),
+}).strict() satisfies z.ZodType<StoryboardPackage>;
 
-export const TARGET_FORMATS: StoryboardInput["targetFormat"][] = [
-  "Storyboard panels", "Concept art prompts", "Shot list", "Storyboard + shot list",
-];
-
-export const DEFAULT_INPUT: StoryboardInput = {
-  sceneIdea:
-    "A tired astronaut discovers a tiny plant growing inside an abandoned space station.",
-  genre: "Sci-fi",
-  visualStyle: "Cinematic live action",
-  duration: "60 seconds",
-  panelCount: 6,
-  tone: "Hopeful",
-  targetFormat: "Storyboard + shot list",
-};
+export type SchemaValidationResult<T> =
+  | { success: true; data: T; issues: [] }
+  | { success: false; issues: string[] };
 
 export function isStoryboardInput(value: unknown): value is StoryboardInput {
-  if (!value || typeof value !== "object") return false;
-  const input = value as StoryboardInput;
-  return (
-    typeof input.sceneIdea === "string" &&
-    input.sceneIdea.trim().length > 0 &&
-    GENRES.includes(input.genre) &&
-    VISUAL_STYLES.includes(input.visualStyle) &&
-    DURATIONS.includes(input.duration) &&
-    PANEL_COUNTS.includes(input.panelCount) &&
-    TONES.includes(input.tone) &&
-    TARGET_FORMATS.includes(input.targetFormat)
+  return storyboardInputSchema.safeParse(value).success;
+}
+
+export function validateStoryboardInput(
+  value: unknown,
+): SchemaValidationResult<StoryboardInput> {
+  return formatValidationResult(storyboardInputSchema.safeParse(value));
+}
+
+export function validateStoryboardPackage(
+  value: unknown,
+  requestedPanelCount?: number,
+): SchemaValidationResult<StoryboardPackage> {
+  const result = storyboardPackageSchema.safeParse(value);
+  const sequenceIssues = validateStoryboardSequence(
+    value,
+    requestedPanelCount,
   );
+
+  if (!result.success) {
+    const validationResult = formatValidationResult(result);
+    return {
+      success: false,
+      issues: [...validationResult.issues, ...sequenceIssues],
+    };
+  }
+
+  if (sequenceIssues.length > 0) {
+    return { success: false, issues: sequenceIssues };
+  }
+
+  return { success: true, data: result.data, issues: [] };
+}
+
+function validateStoryboardSequence(
+  value: unknown,
+  requestedPanelCount?: number,
+) {
+  const issues: string[] = [];
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("storyboard" in value) ||
+    !Array.isArray(value.storyboard)
+  ) {
+    return issues;
+  }
+
+  const panels = value.storyboard;
+
+  if (
+    typeof requestedPanelCount === "number" &&
+    panels.length !== requestedPanelCount
+  ) {
+    issues.push(
+      `storyboard: Expected exactly ${requestedPanelCount} panels, received ${panels.length}.`,
+    );
+  }
+
+  panels.forEach((panel, index) => {
+    const expectedPanelNumber = index + 1;
+    if (
+      panel &&
+      typeof panel === "object" &&
+      "panelNumber" in panel &&
+      panel.panelNumber !== expectedPanelNumber
+    ) {
+      issues.push(
+        `storyboard.${index}.panelNumber: Expected ${expectedPanelNumber}, received ${panel.panelNumber}.`,
+      );
+    }
+  });
+
+  return issues;
+}
+
+function formatValidationResult<T>(
+  result: z.ZodSafeParseResult<T>,
+): SchemaValidationResult<T> {
+  if (result.success) {
+    return { success: true, data: result.data, issues: [] };
+  }
+
+  return {
+    success: false,
+    issues: result.error.issues.map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join(".") : "root";
+      return `${path}: ${issue.message}`;
+    }),
+  };
 }

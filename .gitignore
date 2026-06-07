@@ -223,6 +223,9 @@ node_modules/
 out/
 npm-debug.log*
 *.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
 
 # Application source (overrides the Python template's lib/ rule above)
 !lib/

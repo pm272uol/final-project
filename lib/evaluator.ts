@@ -4,6 +4,8 @@ import type {
   StoryboardPackage,
 } from "@/types/storyboard";
 
+export const EVALUATION_PASS_THRESHOLD = 85;
+
 export function evaluateStoryboard(
   storyboard: StoryboardPackage,
   requestedPanelCount: number,
@@ -33,7 +35,11 @@ export function evaluateStoryboard(
     (checks.filter((item) => item.passed).length / checks.length) * 100,
   );
 
-  return { score, passed: score >= 85, checks };
+  return {
+    score,
+    passed: score >= EVALUATION_PASS_THRESHOLD,
+    checks,
+  };
 }
 
 function check(

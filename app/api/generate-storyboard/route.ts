@@ -1,25 +1,20 @@
 import { NextResponse } from "next/server";
-import { createMockStoryboard } from "@/lib/mockStoryboard";
-import { buildStoryboardPrompt } from "@/lib/promptBuilder";
-import { isStoryboardInput } from "@/lib/storyboardSchema";
+import { createGenerateStoryboardResponse } from "@/lib/generateStoryboard";
 
 export async function POST(request: Request) {
-  const body: unknown = await request.json();
+  let body: unknown;
 
-  if (!isStoryboardInput(body)) {
+  try {
+    body = await request.json();
+  } catch {
     return NextResponse.json(
-      { error: "Scene idea and creative constraints are required." },
+      {
+        error:
+          "The request body is not valid JSON. Check the request and try again.",
+      },
       { status: 400 },
     );
   }
 
-  // Build and retain the future model instruction while mock mode is active.
-  buildStoryboardPrompt(body);
-
-  await new Promise((resolve) => setTimeout(resolve, 650));
-
-  return NextResponse.json({
-    mode: "mock",
-    storyboard: createMockStoryboard(body),
-  });
+  return createGenerateStoryboardResponse(body);
 }

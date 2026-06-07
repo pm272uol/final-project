@@ -7,7 +7,7 @@ import {
   TARGET_FORMATS,
   TONES,
   VISUAL_STYLES,
-} from "@/lib/storyboardSchema";
+} from "@/lib/storyboardOptions";
 import type { StoryboardInput } from "@/types/storyboard";
 
 type Props = {
@@ -116,7 +116,9 @@ export function SceneInputForm({
 
       <button
         type="submit"
+        data-testid="generate-button"
         disabled={loading || !input.sceneIdea.trim()}
+        aria-disabled={loading || !input.sceneIdea.trim()}
         className="group flex w-full items-center justify-between border-[1.5px] border-ink bg-ink px-5 py-4 text-left text-paper shadow-[5px_5px_0_#d8ff52] transition hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#d8ff52] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="font-bold">
@@ -141,13 +143,21 @@ function SelectField({
 }: {
   label: string;
   value: string;
-  options: string[];
+  options: readonly string[];
   onChange: (value: string) => void;
 }) {
+  const id = `constraint-${label.toLowerCase().replace(/\s+/g, "-")}`;
+
   return (
-    <label>
-      <span className="mb-1.5 block text-xs font-bold">{label}</span>
+    <div>
+      <label
+        className="mb-1.5 block text-xs font-bold"
+        htmlFor={id}
+      >
+        {label}
+      </label>
       <select
+        id={id}
         className="field cursor-pointer text-sm"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -156,6 +166,6 @@ function SelectField({
           <option key={option}>{option}</option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }

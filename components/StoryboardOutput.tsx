@@ -4,8 +4,21 @@ import { useState } from "react";
 import type { StoryboardPackage } from "@/types/storyboard";
 
 export function StoryboardOutput({ data }: { data: StoryboardPackage }) {
+  const [copyStatus, setCopyStatus] = useState("");
+
+  function announceCopy(message: string) {
+    setCopyStatus(message);
+    window.setTimeout(() => setCopyStatus(""), 1600);
+  }
+
   return (
-    <div className="animate-rise space-y-8">
+    <div
+      className="animate-rise space-y-8"
+      data-testid="storyboard-output"
+    >
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {copyStatus}
+      </p>
       <header className="border-b-[1.5px] border-ink pb-7">
         <div className="mb-4 flex flex-wrap gap-2">
           {[data.genre, data.tone, data.visualStyle, data.estimatedDuration].map(
@@ -36,7 +49,11 @@ export function StoryboardOutput({ data }: { data: StoryboardPackage }) {
         />
         <div className="grid gap-6 xl:grid-cols-2">
           {data.storyboard.map((panel) => (
-            <PanelCard key={panel.panelNumber} panel={panel} />
+            <PanelCard
+              key={panel.panelNumber}
+              panel={panel}
+              onCopyStatus={announceCopy}
+            />
           ))}
         </div>
       </section>
@@ -82,19 +99,31 @@ export function StoryboardOutput({ data }: { data: StoryboardPackage }) {
 
 function PanelCard({
   panel,
+  onCopyStatus,
 }: {
   panel: StoryboardPackage["storyboard"][number];
+  onCopyStatus: (message: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
   async function copyPrompt() {
-    await navigator.clipboard.writeText(panel.imagePrompt);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1300);
+    try {
+      await navigator.clipboard.writeText(panel.imagePrompt);
+      setCopied(true);
+      onCopyStatus(`Image prompt for panel ${panel.panelNumber} copied.`);
+      window.setTimeout(() => setCopied(false), 1300);
+    } catch {
+      onCopyStatus(
+        `Image prompt for panel ${panel.panelNumber} could not be copied.`,
+      );
+    }
   }
 
   return (
-    <article className="paper-card flex h-full flex-col overflow-hidden">
+    <article
+      className="paper-card flex h-full min-w-0 flex-col overflow-hidden"
+      data-testid="storyboard-panel"
+    >
       <div className="flex items-center justify-between border-b-[1.5px] border-ink bg-ink p-3 text-paper">
         <span className="display text-3xl leading-none">
           {String(panel.panelNumber).padStart(2, "0")}
@@ -120,6 +149,7 @@ function PanelCard({
             <button
               type="button"
               onClick={copyPrompt}
+              aria-label={`Copy image prompt for panel ${panel.panelNumber}`}
               className="mono text-[10px] uppercase underline decoration-paper/40 underline-offset-4 hover:text-acid"
             >
               {copied ? "Copied" : "Copy"}
