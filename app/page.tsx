@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
+import { GenerationStatus } from "@/components/GenerationStatus";
 import { JsonPreview } from "@/components/JsonPreview";
 import { SceneInputForm } from "@/components/SceneInputForm";
 import { StoryboardOutput } from "@/components/StoryboardOutput";
@@ -10,6 +11,7 @@ import { DEFAULT_INPUT } from "@/lib/storyboardOptions";
 import type {
   GenerationMetadata,
   StoryboardGenerationResponse,
+  StoryboardGenerationStreamEvent,
   StoryboardInput,
   StoryboardPackage,
 } from "@/types/storyboard";
@@ -22,12 +24,19 @@ export default function Home() {
   const [requestedPanelCount, setRequestedPanelCount] = useState(
     DEFAULT_INPUT.panelCount,
   );
+  const [activePanelCount, setActivePanelCount] = useState(
+    DEFAULT_INPUT.panelCount,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState(
     "Ready to generate a storyboard.",
   );
+  const [progressMessage, setProgressMessage] = useState(
+    "Preparing the storyboard prompt...",
+  );
+  const [streamedOutput, setStreamedOutput] = useState("");
   const generationController = useRef<AbortController | null>(null);
 
   const evaluation = useMemo(
@@ -42,14 +51,20 @@ export default function Home() {
     setLoading(true);
     setError("");
     setErrorDetails([]);
-    setStatusMessage("Generating storyboard. Please wait.");
+    setStreamedOutput("");
+    setActivePanelCount(input.panelCount);
+    setProgressMessage("Preparing the storyboard prompt...");
+    setStatusMessage("Generating storyboard with the local model.");
     const controller = new AbortController();
     generationController.current = controller;
 
     try {
       const response = await fetch("/api/generate-storyboard", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/x-ndjson",
+        },
         body: JSON.stringify(input),
         signal: controller.signal,
       });
@@ -64,7 +79,26 @@ export default function Home() {
         );
       }
 
-      const data = (await response.json()) as StoryboardGenerationResponse;
+      let data: StoryboardGenerationResponse | undefined;
+      await readGenerationStream(response, (event) => {
+        if (event.type === "status") {
+          setProgressMessage(event.message);
+          setStatusMessage(event.message);
+        } else if (event.type === "output") {
+          setProgressMessage("Receiving structured storyboard data...");
+          setStreamedOutput((current) => current + event.text);
+        } else if (event.type === "complete") {
+          data = event.data;
+        } else {
+          setErrorDetails(event.validationIssues ?? []);
+          throw new Error(event.error);
+        }
+      });
+
+      if (!data) {
+        throw new Error("The model response ended before the storyboard arrived.");
+      }
+
       setStoryboard(data.storyboard);
       setGenerationMetadata(data.metadata);
       setRequestedPanelCount(input.panelCount);
@@ -181,7 +215,13 @@ export default function Home() {
           className="min-w-0 min-h-[70vh] p-5 sm:p-8 lg:p-10"
           aria-busy={loading}
         >
-          {storyboard && evaluation ? (
+          {loading ? (
+            <GenerationStatus
+              message={progressMessage}
+              output={streamedOutput}
+              requestedPanelCount={activePanelCount}
+            />
+          ) : storyboard && evaluation ? (
             <div className="space-y-8">
               <StoryboardOutput
                 data={storyboard}
@@ -191,7 +231,7 @@ export default function Home() {
               <JsonPreview data={storyboard} />
             </div>
           ) : (
-            <EmptyState loading={loading} />
+            <EmptyState />
           )}
         </section>
       </div>
@@ -206,7 +246,36 @@ export default function Home() {
   );
 }
 
-function EmptyState({ loading }: { loading: boolean }) {
+async function readGenerationStream(
+  response: Response,
+  onEvent: (event: StoryboardGenerationStreamEvent) => void,
+) {
+  if (!response.body) {
+    throw new Error("The storyboard response did not include a stream.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const processLine = (line: string) => {
+    if (!line.trim()) return;
+    onEvent(JSON.parse(line) as StoryboardGenerationStreamEvent);
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    lines.forEach(processLine);
+    if (done) break;
+  }
+
+  processLine(buffer);
+}
+
+function EmptyState() {
   return (
     <div className="flex min-h-[58vh] items-center justify-center">
       <div className="max-w-lg text-center">
@@ -216,20 +285,17 @@ function EmptyState({ loading }: { loading: boolean }) {
               key={item}
               className={`border-ink/30 ${item < 3 ? "border-b" : ""} ${
                 item % 3 !== 2 ? "border-r" : ""
-              } ${loading && item % 2 === 0 ? "bg-acid" : ""}`}
+              }`}
             />
           ))}
         </div>
         <p className="mono text-[10px] uppercase tracking-[0.18em] text-rust">
-          {loading ? "Assembling visual beats" : "Your board is empty"}
+          Your board is empty
         </p>
-        <h2 className="display mt-2 text-5xl">
-          {loading ? "Blocking the scene..." : "Begin with an image."}
-        </h2>
+        <h2 className="display mt-2 text-5xl">Begin with an image.</h2>
         <p className="mt-4 text-sm leading-relaxed text-ink/55">
-          {loading
-            ? "The mock engine is shaping your brief into a structured production package."
-            : "Describe the moment you can already see. The orchestrator will map the shots around it."}
+          Describe the moment you can already see. The orchestrator will map
+          the shots around it.
         </p>
       </div>
     </div>

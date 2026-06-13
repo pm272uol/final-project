@@ -6,7 +6,18 @@ import type {
 
 export type StoryboardGenerationContext = {
   signal?: AbortSignal;
+  onProgress?: (progress: StoryboardProviderProgress) => void;
 };
+
+export type StoryboardProviderProgress =
+  | {
+      type: "status";
+      message: string;
+    }
+  | {
+      type: "output";
+      text: string;
+    };
 
 export type StoryboardProviderResult = {
   storyboard: StoryboardPackage;

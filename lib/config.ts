@@ -12,7 +12,7 @@ const configSchema = z.object({
     .url()
     .default("http://127.0.0.1:11434"),
   ollamaModel: z.string().trim().min(1).default("gemma4:latest"),
-  ollamaTimeoutMs: z.coerce.number().int().positive().default(180_000),
+  ollamaTimeoutMs: z.coerce.number().int().positive().default(300_000),
   mockFallback: booleanSchema.default(true),
   maxRequestBytes: z.coerce.number().int().positive().default(16_384),
 });

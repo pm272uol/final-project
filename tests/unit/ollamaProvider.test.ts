@@ -55,6 +55,83 @@ describe("OllamaStoryboardProvider", () => {
     });
   });
 
+  it("streams model output while assembling the final storyboard", async () => {
+    const storyboard = createMockStoryboard(validInput);
+    const serializedStoryboard = JSON.stringify(storyboard);
+    const midpoint = Math.floor(serializedStoryboard.length / 2);
+    const encoder = new TextEncoder();
+    const fetchMock = vi.fn<typeof fetch>();
+    fetchMock.mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(
+                `${JSON.stringify({
+                  model: "gemma4:latest",
+                  response: serializedStoryboard.slice(0, midpoint),
+                  done: false,
+                })}\n`,
+              ),
+            );
+            controller.enqueue(
+              encoder.encode(
+                `${JSON.stringify({
+                  model: "gemma4:latest",
+                  response: serializedStoryboard.slice(midpoint),
+                  done: false,
+                })}\n${JSON.stringify({
+                  model: "gemma4:latest",
+                  response: "",
+                  done: true,
+                  total_duration: 24_000_000,
+                  prompt_eval_count: 120,
+                  eval_count: 240,
+                })}\n`,
+              ),
+            );
+            controller.close();
+          },
+        }),
+      ),
+    );
+    const onProgress = vi.fn();
+    const provider = new OllamaStoryboardProvider({
+      baseUrl: "http://127.0.0.1:11434",
+      model: "gemma4:latest",
+      timeoutMs: 1_000,
+      fetchImplementation: fetchMock as unknown as typeof fetch,
+    });
+
+    const result = await provider.generate(validInput, { onProgress });
+    const [, request] = fetchMock.mock.calls[0];
+    const requestBody = JSON.parse(String(request?.body));
+
+    expect(requestBody.stream).toBe(true);
+    expect(onProgress).toHaveBeenCalledWith({
+      type: "status",
+      message: "Waiting for gemma4:latest to begin responding...",
+    });
+    expect(onProgress).toHaveBeenCalledWith({
+      type: "output",
+      text: serializedStoryboard.slice(0, midpoint),
+    });
+    expect(onProgress).toHaveBeenCalledWith({
+      type: "output",
+      text: serializedStoryboard.slice(midpoint),
+    });
+    expect(onProgress).toHaveBeenCalledWith({
+      type: "status",
+      message: "Validating the completed storyboard package...",
+    });
+    expect(result.storyboard.title).toBe(storyboard.title);
+    expect(result.metadata).toMatchObject({
+      durationMs: 24,
+      promptTokens: 120,
+      completionTokens: 240,
+    });
+  });
+
   it("maps missing model responses to a model-not-found provider error", async () => {
     const provider = new OllamaStoryboardProvider({
       baseUrl: "http://127.0.0.1:11434",

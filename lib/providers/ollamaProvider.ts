@@ -4,6 +4,7 @@ import {
   StoryboardProviderError,
   type StoryboardGenerationContext,
   type StoryboardProvider,
+  type StoryboardProviderProgress,
 } from "@/lib/providers/types";
 import {
   storyboardPackageSchema,
@@ -14,6 +15,15 @@ import type { StoryboardInput } from "@/types/storyboard";
 const ollamaResponseSchema = z.object({
   model: z.string(),
   response: z.string(),
+  done: z.boolean(),
+  total_duration: z.number().optional(),
+  prompt_eval_count: z.number().optional(),
+  eval_count: z.number().optional(),
+});
+
+const ollamaStreamChunkSchema = z.object({
+  model: z.string().optional(),
+  response: z.string().default(""),
   done: z.boolean(),
   total_duration: z.number().optional(),
   prompt_eval_count: z.number().optional(),
@@ -53,8 +63,13 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
     );
     const signal = combineSignals(context.signal, timeoutController.signal);
     const abortWaiter = waitForAbort(signal);
+    const streaming = Boolean(context.onProgress);
 
     try {
+      context.onProgress?.({
+        type: "status",
+        message: `Waiting for ${this.model} to begin responding...`,
+      });
       const response = await Promise.race([
         this.fetchImplementation(`${this.baseUrl}/api/generate`, {
           method: "POST",
@@ -62,7 +77,7 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
           body: JSON.stringify({
             model: this.model,
             prompt: buildStoryboardPrompt(input),
-            stream: false,
+            stream: streaming,
             format: z.toJSONSchema(storyboardPackageSchema),
             options: {
               temperature: 0.2,
@@ -89,7 +104,11 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
         );
       }
 
-      const ollamaResult = ollamaResponseSchema.safeParse(await response.json());
+      const ollamaResult = ollamaResponseSchema.safeParse(
+        streaming
+          ? await readStreamingResponse(response, context.onProgress)
+          : await response.json(),
+      );
       if (!ollamaResult.success) {
         throw new StoryboardProviderError(
           "INVALID_MODEL_RESPONSE",
@@ -98,6 +117,10 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
         );
       }
 
+      context.onProgress?.({
+        type: "status",
+        message: "Validating the completed storyboard package...",
+      });
       const parsedStoryboard = parseModelJson(ollamaResult.data.response);
       const validation = validateStoryboardPackage(
         parsedStoryboard,
@@ -150,6 +173,83 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
       abortWaiter.cleanup();
     }
   }
+}
+
+async function readStreamingResponse(
+  response: Response,
+  onProgress?: (progress: StoryboardProviderProgress) => void,
+) {
+  if (!response.body) {
+    throw new StoryboardProviderError(
+      "INVALID_MODEL_RESPONSE",
+      "Ollama returned an empty streaming response.",
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let generatedText = "";
+  let finalChunk: z.infer<typeof ollamaStreamChunkSchema> | undefined;
+
+  async function processLine(line: string) {
+    if (!line.trim()) return;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch (error) {
+      throw new StoryboardProviderError(
+        "INVALID_MODEL_RESPONSE",
+        "Ollama returned a malformed streaming response.",
+        error,
+      );
+    }
+
+    const chunkResult = ollamaStreamChunkSchema.safeParse(parsed);
+    if (!chunkResult.success) {
+      throw new StoryboardProviderError(
+        "INVALID_MODEL_RESPONSE",
+        "Ollama returned an unexpected streaming response.",
+        chunkResult.error,
+      );
+    }
+
+    const chunk = chunkResult.data;
+    generatedText += chunk.response;
+    if (chunk.response) {
+      onProgress?.({ type: "output", text: chunk.response });
+    }
+    if (chunk.done) finalChunk = chunk;
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      await processLine(line);
+    }
+
+    if (done) break;
+  }
+
+  await processLine(buffer);
+
+  if (!finalChunk) {
+    throw new StoryboardProviderError(
+      "INVALID_MODEL_RESPONSE",
+      "Ollama ended its response before generation completed.",
+    );
+  }
+
+  return {
+    ...finalChunk,
+    model: finalChunk.model ?? "",
+    response: generatedText,
+  };
 }
 
 export function parseModelJson(value: string): unknown {

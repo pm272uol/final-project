@@ -124,7 +124,9 @@ export function SceneInputForm({
         className="group flex w-full items-center justify-between border-[1.5px] border-ink bg-ink px-5 py-4 text-left text-paper shadow-[5px_5px_0_#d8ff52] transition hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#d8ff52] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="font-bold">
-          {loading ? "Blocking the scene..." : "Generate storyboard prompts"}
+          {loading
+            ? "Generating with local model..."
+            : "Generate storyboard prompts"}
         </span>
         <span
           aria-hidden="true"

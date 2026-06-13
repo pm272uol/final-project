@@ -5,6 +5,7 @@ import { createStoryboardProvider } from "@/lib/providers/providerFactory";
 import {
   StoryboardProviderError,
   type StoryboardProvider,
+  type StoryboardProviderProgress,
 } from "@/lib/providers/types";
 import {
   validateStoryboardInput,
@@ -16,6 +17,7 @@ type GenerateStoryboardOptions = {
   fallbackProvider?: StoryboardProvider;
   config?: AppConfig;
   signal?: AbortSignal;
+  onProgress?: (progress: StoryboardProviderProgress) => void;
 };
 
 export async function createGenerateStoryboardResponse(
@@ -47,6 +49,7 @@ export async function createGenerateStoryboardResponse(
   try {
     providerResult = await provider.generate(inputResult.data, {
       signal: options.signal,
+      onProgress: options.onProgress,
     });
   } catch (error) {
     if (
@@ -57,8 +60,13 @@ export async function createGenerateStoryboardResponse(
       fallbackUsed = true;
       fallbackReason =
         error instanceof Error ? error.message : "Unknown provider failure";
+      options.onProgress?.({
+        type: "status",
+        message: "The local model failed. Generating the mock fallback...",
+      });
       providerResult = await fallbackProvider.generate(inputResult.data, {
         signal: options.signal,
+        onProgress: options.onProgress,
       });
     } else {
       return providerErrorResponse(error);

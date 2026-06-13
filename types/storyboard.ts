@@ -117,3 +117,23 @@ export type StoryboardGenerationResponse = {
   storyboard: StoryboardPackage;
   metadata: GenerationMetadata;
 };
+
+export type StoryboardGenerationStreamEvent =
+  | {
+      type: "status";
+      message: string;
+    }
+  | {
+      type: "output";
+      text: string;
+    }
+  | {
+      type: "complete";
+      data: StoryboardGenerationResponse;
+    }
+  | {
+      type: "error";
+      error: string;
+      code?: string;
+      validationIssues?: string[];
+    };

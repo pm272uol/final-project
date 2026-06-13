@@ -30,6 +30,48 @@ describe("POST /api/generate-storyboard", () => {
     expect(body.storyboard.storyboard).toHaveLength(validInput.panelCount);
   });
 
+  it("streams progress and the completed storyboard when requested", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/generate-storyboard", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/x-ndjson",
+        },
+        body: JSON.stringify(validInput),
+      }),
+    );
+    const events = (await response.text())
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+
+    expect(response.headers.get("content-type")).toContain(
+      "application/x-ndjson",
+    );
+    expect(events[0]).toEqual({
+      type: "status",
+      message: "Preparing the storyboard prompt...",
+    });
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "status",
+          message: "Building the deterministic storyboard...",
+        }),
+        expect.objectContaining({
+          type: "complete",
+          data: expect.objectContaining({
+            mode: "mock",
+            storyboard: expect.objectContaining({
+              title: "The Frame Of Tomorrow",
+            }),
+          }),
+        }),
+      ]),
+    );
+  });
+
   it("returns a friendly validation error for invalid input", async () => {
     const response = await POST(jsonRequest({ ...validInput, panelCount: 5 }));
     const body = await response.json();
@@ -176,7 +218,7 @@ function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     provider: "ollama" as const,
     ollamaBaseUrl: "http://127.0.0.1:11434",
     ollamaModel: "gemma4:latest",
-    ollamaTimeoutMs: 180_000,
+    ollamaTimeoutMs: 300_000,
     mockFallback: true,
     maxRequestBytes: 16_384,
     ...overrides,

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAppConfig } from "@/lib/config";
 import { createGenerateStoryboardResponse } from "@/lib/generateStoryboard";
+import type {
+  StoryboardGenerationResponse,
+  StoryboardGenerationStreamEvent,
+} from "@/types/storyboard";
 
 export async function POST(request: Request) {
   const config = getAppConfig();
@@ -40,8 +44,94 @@ export async function POST(request: Request) {
     );
   }
 
-  return createGenerateStoryboardResponse(body, {
-    config,
-    signal: request.signal,
+  if (request.headers.get("accept")?.includes("application/x-ndjson")) {
+    return createStreamingResponse(body, config, request.signal);
+  }
+
+  return createGenerateStoryboardResponse(body, { config, signal: request.signal });
+}
+
+function createStreamingResponse(
+  body: unknown,
+  config: ReturnType<typeof getAppConfig>,
+  requestSignal: AbortSignal,
+) {
+  const encoder = new TextEncoder();
+  const generationController = new AbortController();
+  const signal = AbortSignal.any([
+    requestSignal,
+    generationController.signal,
+  ]);
+  let streamClosed = false;
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = (event: StoryboardGenerationStreamEvent) => {
+        if (streamClosed) return;
+        controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      };
+
+      void (async () => {
+        try {
+          send({
+            type: "status",
+            message: "Preparing the storyboard prompt...",
+          });
+          const response = await createGenerateStoryboardResponse(body, {
+            config,
+            signal,
+            onProgress: send,
+          });
+          const payload = await response.json();
+
+          if (response.ok) {
+            send({
+              type: "complete",
+              data: payload as StoryboardGenerationResponse,
+            });
+          } else {
+            send({
+              type: "error",
+              error:
+                typeof payload.error === "string"
+                  ? payload.error
+                  : "The storyboard could not be generated.",
+              code:
+                typeof payload.code === "string" ? payload.code : undefined,
+              validationIssues: Array.isArray(payload.validationIssues)
+                ? payload.validationIssues
+                : undefined,
+            });
+          }
+        } catch (error) {
+          if (!signal.aborted) {
+            send({
+              type: "error",
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "The storyboard stream failed unexpectedly.",
+            });
+          }
+        } finally {
+          if (!streamClosed) {
+            streamClosed = true;
+            controller.close();
+          }
+        }
+      })();
+    },
+    cancel() {
+      streamClosed = true;
+      generationController.abort();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    },
   });
 }

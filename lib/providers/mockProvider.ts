@@ -1,13 +1,23 @@
 import { createMockStoryboard } from "@/lib/mockStoryboard";
-import type { StoryboardProvider } from "@/lib/providers/types";
+import type {
+  StoryboardGenerationContext,
+  StoryboardProvider,
+} from "@/lib/providers/types";
 import type { StoryboardInput } from "@/types/storyboard";
 
 export class MockStoryboardProvider implements StoryboardProvider {
   readonly name = "mock" as const;
   readonly model = "deterministic-scene-aware-v1";
 
-  async generate(input: StoryboardInput) {
+  async generate(
+    input: StoryboardInput,
+    context: StoryboardGenerationContext = {},
+  ) {
     const startedAt = performance.now();
+    context.onProgress?.({
+      type: "status",
+      message: "Building the deterministic storyboard...",
+    });
 
     return {
       storyboard: createMockStoryboard(input),
