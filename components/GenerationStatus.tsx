@@ -7,10 +7,12 @@ export function GenerationStatus({
   message,
   output,
   requestedPanelCount,
+  visualSummary,
 }: {
   message: string;
   output: string;
   requestedPanelCount: number;
+  visualSummary?: string;
 }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const outputRef = useRef<HTMLPreElement>(null);
@@ -175,6 +177,17 @@ export function GenerationStatus({
             }
           />
         </div>
+
+        {visualSummary ? (
+          <div className="border-t-[1.5px] border-ink bg-acid/35 p-4 sm:p-5">
+            <p className="mono text-[9px] uppercase tracking-wider text-rust">
+              Combined visual direction
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-ink/70">
+              {visualSummary}
+            </p>
+          </div>
+        ) : null}
 
         <details className="border-t-[1.5px] border-ink bg-ink text-paper">
           <summary className="mono cursor-pointer px-4 py-3 text-[10px] uppercase tracking-[0.16em] text-paper/65 hover:text-acid sm:px-5">

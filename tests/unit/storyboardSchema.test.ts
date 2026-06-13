@@ -51,6 +51,21 @@ describe("buildStoryboardPrompt", () => {
     expect(prompt).toContain(`Create exactly ${validInput.panelCount} storyboard panels`);
     expect(prompt).toContain("Return valid JSON only");
   });
+
+  it("uses a combined visual summary without referring to uploads", () => {
+    const prompt = buildStoryboardPrompt({
+      ...validInput,
+      visualReferenceSummary:
+        "Low-key amber light, industrial interiors, and asymmetrical framing.",
+    });
+
+    expect(prompt).toContain(
+      "Combined visual direction: Low-key amber light, industrial interiors, and asymmetrical framing.",
+    );
+    expect(prompt).toContain(
+      "without mentioning reference images, uploads, filenames, or source material",
+    );
+  });
 });
 
 describe("validateStoryboardPackage", () => {

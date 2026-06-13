@@ -26,4 +26,17 @@ describe("scene-aware mock storyboard", () => {
     expect(serialized).not.toContain("Astronaut");
     expect(serialized).not.toContain("space station");
   });
+
+  it("applies the combined visual direction to image prompts", () => {
+    const storyboard = createMockStoryboard({
+      ...validInput,
+      visualReferenceSummary:
+        "Amber practical light and asymmetrical industrial framing.",
+    });
+
+    expect(storyboard.storyboard[0].imagePrompt).toContain(
+      "Combined visual direction: Amber practical light and asymmetrical industrial framing.",
+    );
+    expect(storyboard.storyboard[0].imagePrompt).not.toContain("upload");
+  });
 });

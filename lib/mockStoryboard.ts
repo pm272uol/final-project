@@ -160,7 +160,11 @@ function createPanel(
     cameraDirection: CAMERA_DIRECTIONS[index],
     action,
     setting: titleCase(profile.setting),
-    imagePrompt: `${input.visualStyle} storyboard frame for a ${input.genre.toLowerCase()} short film: ${storyBeat} Show ${profile.subject} in ${profile.setting}, with ${profile.keyVisual} as the visual focus. ${SHOT_TYPES[index]} composition, motivated practical lighting, ${input.tone.toLowerCase()} atmosphere, consistent costume and production design, cinematic depth, clear subject separation, filmable physical detail.`,
+    imagePrompt: `${input.visualStyle} storyboard frame for a ${input.genre.toLowerCase()} short film: ${storyBeat} Show ${profile.subject} in ${profile.setting}, with ${profile.keyVisual} as the visual focus. ${SHOT_TYPES[index]} composition, motivated practical lighting, ${input.tone.toLowerCase()} atmosphere, consistent costume and production design, cinematic depth, clear subject separation, filmable physical detail.${
+      input.visualReferenceSummary
+        ? ` Combined visual direction: ${input.visualReferenceSummary}`
+        : ""
+    }`,
     negativePrompt:
       "Avoid extra characters, inconsistent costume or props, unreadable staging, text overlays, distorted anatomy, uncontrolled visual clutter, and lighting that contradicts the selected tone.",
     dialogueOrNarration:

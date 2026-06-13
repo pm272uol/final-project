@@ -1,5 +1,6 @@
 export type StoryboardInput = {
   sceneIdea: string;
+  visualReferenceSummary?: string;
   genre:
     | "Drama"
     | "Comedy"

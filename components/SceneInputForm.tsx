@@ -8,6 +8,10 @@ import {
   TONES,
   VISUAL_STYLES,
 } from "@/lib/storyboardOptions";
+import {
+  ReferenceImagePanel,
+  type ReferenceImageDraft,
+} from "@/components/ReferenceImagePanel";
 import type { StoryboardInput } from "@/types/storyboard";
 
 type Props = {
@@ -16,6 +20,10 @@ type Props = {
   onChange: (input: StoryboardInput) => void;
   onSubmit: () => void;
   onCancel: () => void;
+  references: ReferenceImageDraft[];
+  visualSummary: string;
+  onReferencesChange: (references: ReferenceImageDraft[]) => void;
+  onVisualSummaryChange: (summary: string) => void;
 };
 
 export function SceneInputForm({
@@ -24,6 +32,10 @@ export function SceneInputForm({
   onChange,
   onSubmit,
   onCancel,
+  references,
+  visualSummary,
+  onReferencesChange,
+  onVisualSummaryChange,
 }: Props) {
   const update = <Key extends keyof StoryboardInput>(
     key: Key,
@@ -116,11 +128,27 @@ export function SceneInputForm({
         </div>
       </fieldset>
 
+      <ReferenceImagePanel
+        references={references}
+        summary={visualSummary}
+        disabled={loading}
+        onReferencesChange={onReferencesChange}
+        onSummaryChange={onVisualSummaryChange}
+      />
+
       <button
         type="submit"
         data-testid="generate-button"
-        disabled={loading || !input.sceneIdea.trim()}
-        aria-disabled={loading || !input.sceneIdea.trim()}
+        disabled={
+          loading ||
+          !input.sceneIdea.trim() ||
+          (references.length > 0 && !visualSummary.trim())
+        }
+        aria-disabled={
+          loading ||
+          !input.sceneIdea.trim() ||
+          (references.length > 0 && !visualSummary.trim())
+        }
         className="group flex w-full items-center justify-between border-[1.5px] border-ink bg-ink px-5 py-4 text-left text-paper shadow-[5px_5px_0_#d8ff52] transition hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#d8ff52] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="font-bold">

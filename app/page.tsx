@@ -5,6 +5,7 @@ import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { GenerationStatus } from "@/components/GenerationStatus";
 import { JsonPreview } from "@/components/JsonPreview";
 import { SceneInputForm } from "@/components/SceneInputForm";
+import type { ReferenceImageDraft } from "@/components/ReferenceImagePanel";
 import { StoryboardOutput } from "@/components/StoryboardOutput";
 import { evaluateStoryboard } from "@/lib/evaluator";
 import { DEFAULT_INPUT } from "@/lib/storyboardOptions";
@@ -37,6 +38,8 @@ export default function Home() {
     "Preparing the storyboard prompt...",
   );
   const [streamedOutput, setStreamedOutput] = useState("");
+  const [references, setReferences] = useState<ReferenceImageDraft[]>([]);
+  const [visualSummary, setVisualSummary] = useState("");
   const generationController = useRef<AbortController | null>(null);
 
   const evaluation = useMemo(
@@ -65,7 +68,10 @@ export default function Home() {
           "Content-Type": "application/json",
           Accept: "application/x-ndjson",
         },
-        body: JSON.stringify(input),
+        body: JSON.stringify({
+          ...input,
+          visualReferenceSummary: visualSummary.trim() || undefined,
+        }),
         signal: controller.signal,
       });
 
@@ -188,6 +194,10 @@ export default function Home() {
             onChange={setInput}
             onSubmit={generate}
             onCancel={cancelGeneration}
+            references={references}
+            visualSummary={visualSummary}
+            onReferencesChange={setReferences}
+            onVisualSummaryChange={setVisualSummary}
           />
           {error ? (
             <div
@@ -220,6 +230,7 @@ export default function Home() {
               message={progressMessage}
               output={streamedOutput}
               requestedPanelCount={activePanelCount}
+              visualSummary={visualSummary}
             />
           ) : storyboard && evaluation ? (
             <div className="space-y-8">

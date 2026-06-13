@@ -16,6 +16,11 @@ export const storyboardInputSchema = z.object({
     .trim()
     .min(1, "Scene idea is required.")
     .max(1_200, "Scene idea must be 1,200 characters or fewer."),
+  visualReferenceSummary: z
+    .string()
+    .trim()
+    .max(2_000, "Visual reference summary must be 2,000 characters or fewer.")
+    .optional(),
   genre: z.enum(GENRES),
   visualStyle: z.enum(VISUAL_STYLES),
   duration: z.enum(DURATIONS),

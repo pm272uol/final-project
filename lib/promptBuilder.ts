@@ -20,6 +20,11 @@ Tone: ${input.tone}
 Estimated duration: ${input.duration}
 Number of storyboard panels: ${input.panelCount}
 Target format: ${input.targetFormat}
+${
+  input.visualReferenceSummary
+    ? `Combined visual direction: ${input.visualReferenceSummary}`
+    : "Combined visual direction: No reference images supplied."
+}
 
 Requirements:
 - Create exactly ${input.panelCount} storyboard panels.
@@ -27,6 +32,7 @@ Requirements:
 - Give each panel one clear visual beat.
 - Use visual storytelling rather than long dialogue.
 - Maintain consistent characters and locations.
+- Apply the combined visual direction throughout without mentioning reference images, uploads, filenames, or source material.
 - Include subject, setting, composition, lighting, mood, style, and key details in every image prompt.
 - Explain framing or camera movement in cameraDirection.
 - Make every production note practical for a filmmaker.

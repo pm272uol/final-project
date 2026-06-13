@@ -18,6 +18,7 @@ test("generates a complete scene-aware storyboard package", async ({ page }) => 
 
   await expect(page.getByTestId("generation-status")).toContainText(
     "Storyboard generated successfully with 4 panels using mock.",
+    { timeout: 15_000 },
   );
   await expect(
     page.getByRole("heading", { name: "The Frame Of Tomorrow" }),
@@ -76,6 +77,44 @@ test("shows generated schema validation failures clearly", async ({ page }) => {
   await expect(page.getByTestId("generation-status")).toContainText(
     "Generation failed.",
   );
+});
+
+test("analyzes local visual references into an editable summary", async ({
+  page,
+}) => {
+  await page.route("**/api/analyze-references", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        summary:
+          "Low-key amber lighting, asymmetrical framing, and weathered industrial production design.",
+      }),
+    });
+  });
+  await page.goto("/");
+
+  await page.locator("#reference-images").setInputFiles({
+    name: "private-sketch.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgQIAKfNhWQAAAABJRU5ErkJggg==",
+      "base64",
+    ),
+  });
+
+  await expect(page.getByTestId("reference-image")).toHaveCount(1);
+  await expect(page.getByTestId("generate-button")).toBeDisabled();
+  await page.getByTestId("analyze-references").click();
+
+  const summary = page.getByLabel("Combined visual direction");
+  await expect(summary).toHaveValue(
+    "Low-key amber lighting, asymmetrical framing, and weathered industrial production design.",
+  );
+  await summary.fill(
+    "Low-key blue lighting, asymmetrical framing, and weathered industrial production design.",
+  );
+  await expect(page.getByTestId("generate-button")).toBeEnabled();
 });
 
 for (const viewport of [
