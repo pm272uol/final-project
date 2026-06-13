@@ -56,12 +56,11 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
     context: StoryboardGenerationContext = {},
   ) {
     const startedAt = performance.now();
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(
-      () => timeoutController.abort(new Error("Ollama request timed out.")),
-      this.timeoutMs,
+    const inactivityTimeout = createInactivityTimeout(this.timeoutMs);
+    const signal = combineSignals(
+      context.signal,
+      inactivityTimeout.controller.signal,
     );
-    const signal = combineSignals(context.signal, timeoutController.signal);
     const abortWaiter = waitForAbort(signal);
     const streaming = Boolean(context.onProgress);
 
@@ -88,6 +87,7 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
         }),
         abortWaiter.promise,
       ]);
+      inactivityTimeout.reset();
 
       if (!response.ok) {
         const detail = await readErrorDetail(response);
@@ -106,9 +106,15 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
 
       const ollamaResult = ollamaResponseSchema.safeParse(
         streaming
-          ? await readStreamingResponse(response, context.onProgress)
-          : await response.json(),
+          ? await readStreamingResponse(
+              response,
+              context.onProgress,
+              inactivityTimeout.reset,
+              abortWaiter.promise,
+            )
+          : await Promise.race([response.json(), abortWaiter.promise]),
       );
+      inactivityTimeout.clear();
       if (!ollamaResult.success) {
         throw new StoryboardProviderError(
           "INVALID_MODEL_RESPONSE",
@@ -153,11 +159,11 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
       if (error instanceof StoryboardProviderError) throw error;
 
       if (signal.aborted) {
-        const timedOut = timeoutController.signal.aborted;
+        const timedOut = inactivityTimeout.controller.signal.aborted;
         throw new StoryboardProviderError(
           timedOut ? "PROVIDER_TIMEOUT" : "PROVIDER_ABORTED",
           timedOut
-            ? `Ollama did not respond within ${this.timeoutMs}ms.`
+            ? `Ollama stream was inactive for ${this.timeoutMs}ms.`
             : "Ollama generation was cancelled.",
           error,
         );
@@ -169,7 +175,7 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
         error,
       );
     } finally {
-      clearTimeout(timeoutId);
+      inactivityTimeout.clear();
       abortWaiter.cleanup();
     }
   }
@@ -178,6 +184,8 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
 async function readStreamingResponse(
   response: Response,
   onProgress?: (progress: StoryboardProviderProgress) => void,
+  onActivity?: () => void,
+  abortPromise?: Promise<never>,
 ) {
   if (!response.body) {
     throw new StoryboardProviderError(
@@ -224,7 +232,11 @@ async function readStreamingResponse(
   }
 
   while (true) {
-    const { done, value } = await reader.read();
+    const readPromise = reader.read();
+    const { done, value } = abortPromise
+      ? await Promise.race([readPromise, abortPromise])
+      : await readPromise;
+    if (value && value.byteLength > 0) onActivity?.();
     buffer += decoder.decode(value, { stream: !done });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
@@ -250,6 +262,31 @@ async function readStreamingResponse(
     model: finalChunk.model ?? "",
     response: generatedText,
   };
+}
+
+function createInactivityTimeout(timeoutMs: number) {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const clear = () => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+  };
+  const reset = () => {
+    clear();
+    timeoutId = setTimeout(
+      () =>
+        controller.abort(
+          new Error(`Ollama stream was inactive for ${timeoutMs}ms.`),
+        ),
+      timeoutMs,
+    );
+  };
+
+  reset();
+  return { controller, reset, clear };
 }
 
 export function parseModelJson(value: string): unknown {

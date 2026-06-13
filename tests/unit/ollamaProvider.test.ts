@@ -132,6 +132,95 @@ describe("OllamaStoryboardProvider", () => {
     });
   });
 
+  it("keeps a long generation alive while stream chunks are arriving", async () => {
+    const storyboard = createMockStoryboard(validInput);
+    const serialized = JSON.stringify(storyboard);
+    const parts = [
+      serialized.slice(0, Math.floor(serialized.length / 3)),
+      serialized.slice(
+        Math.floor(serialized.length / 3),
+        Math.floor((serialized.length * 2) / 3),
+      ),
+      serialized.slice(Math.floor((serialized.length * 2) / 3)),
+    ];
+    const encoder = new TextEncoder();
+    const provider = new OllamaStoryboardProvider({
+      baseUrl: "http://127.0.0.1:11434",
+      model: "gemma4:latest",
+      timeoutMs: 100,
+      fetchImplementation: async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              parts.forEach((part, index) => {
+                setTimeout(() => {
+                  controller.enqueue(
+                    encoder.encode(
+                      `${JSON.stringify({
+                        model: "gemma4:latest",
+                        response: part,
+                        done: false,
+                      })}\n`,
+                    ),
+                  );
+                }, 40 * (index + 1));
+              });
+              setTimeout(() => {
+                controller.enqueue(
+                  encoder.encode(
+                    `${JSON.stringify({
+                      model: "gemma4:latest",
+                      response: "",
+                      done: true,
+                    })}\n`,
+                  ),
+                );
+                controller.close();
+              }, 160);
+            },
+          }),
+        ),
+    });
+
+    const result = await provider.generate(validInput, {
+      onProgress: vi.fn(),
+    });
+
+    expect(result.storyboard.title).toBe(storyboard.title);
+  });
+
+  it("times out when a stream stops producing output", async () => {
+    const encoder = new TextEncoder();
+    const provider = new OllamaStoryboardProvider({
+      baseUrl: "http://127.0.0.1:11434",
+      model: "gemma4:latest",
+      timeoutMs: 20,
+      fetchImplementation: async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(
+                encoder.encode(
+                  `${JSON.stringify({
+                    model: "gemma4:latest",
+                    response: '{"title":',
+                    done: false,
+                  })}\n`,
+                ),
+              );
+            },
+          }),
+        ),
+    });
+
+    await expect(
+      provider.generate(validInput, { onProgress: vi.fn() }),
+    ).rejects.toMatchObject({
+      code: "PROVIDER_TIMEOUT",
+      message: "Ollama stream was inactive for 20ms.",
+    });
+  });
+
   it("maps missing model responses to a model-not-found provider error", async () => {
     const provider = new OllamaStoryboardProvider({
       baseUrl: "http://127.0.0.1:11434",
