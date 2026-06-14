@@ -14,6 +14,7 @@ import type {
   StoryboardGenerationResponse,
   StoryboardGenerationStreamEvent,
   StoryboardInput,
+  PanelImageGenerationResponse,
   StoryboardPackage,
 } from "@/types/storyboard";
 
@@ -41,6 +42,9 @@ export default function Home() {
   const [references, setReferences] = useState<ReferenceImageDraft[]>([]);
   const [visualSummary, setVisualSummary] = useState("");
   const generationController = useRef<AbortController | null>(null);
+  const imageGenerationControllers = useRef(
+    new Map<number, AbortController>(),
+  );
 
   const evaluation = useMemo(
     () =>
@@ -132,6 +136,111 @@ export default function Home() {
 
   function cancelGeneration() {
     generationController.current?.abort();
+  }
+
+  async function generatePanelImage(panelNumber: number) {
+    if (!storyboard) return;
+    const panel = storyboard.storyboard.find(
+      (item) => item.panelNumber === panelNumber,
+    );
+    if (!panel) return;
+
+    imageGenerationControllers.current.get(panelNumber)?.abort();
+    const controller = new AbortController();
+    imageGenerationControllers.current.set(panelNumber, controller);
+    updatePanelImage(panelNumber, {
+      imageStatus: "generating",
+      imageError: undefined,
+    });
+    setStatusMessage(`Generating image for panel ${panelNumber}.`);
+
+    try {
+      const response = await fetch("/api/generate-panel-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          panel,
+          imageContext: createImageContext(storyboard),
+        }),
+        signal: controller.signal,
+      });
+      const result = (await response.json().catch(() => null)) as
+        | (PanelImageGenerationResponse & { error?: string })
+        | null;
+
+      if (!response.ok || !result) {
+        throw new Error(
+          result?.error ?? "Image generation failed. Please retry this panel.",
+        );
+      }
+
+      updatePanelImage(panelNumber, {
+        imageStatus: "complete",
+        imageUrl: result.imageUrl,
+        imageError: undefined,
+        imageGenerationPrompt: result.imagePrompt,
+        imageGenerationNegativePrompt: result.negativePrompt,
+        imageProvider: result.imageProvider,
+        imageModel: result.imageModel,
+        imageSeed: result.imageSeed,
+        imageWidth: result.imageWidth,
+        imageHeight: result.imageHeight,
+        imageGeneratedAt: result.imageGeneratedAt,
+        imageGenerationDurationMs: result.imageGenerationDurationMs,
+      });
+      setStatusMessage(`Image for panel ${panelNumber} generated successfully.`);
+    } catch (caught) {
+      const message = controller.signal.aborted
+        ? "Image generation was cancelled."
+        : caught instanceof Error
+          ? caught.message
+          : "Image generation failed. Please retry this panel.";
+      updatePanelImage(panelNumber, {
+        imageStatus: "failed",
+        imageError: message,
+      });
+      setStatusMessage(`Panel ${panelNumber} image failed. ${message}`);
+    } finally {
+      if (imageGenerationControllers.current.get(panelNumber) === controller) {
+        imageGenerationControllers.current.delete(panelNumber);
+      }
+    }
+  }
+
+  async function generateAllPanelImages() {
+    if (!storyboard) return;
+    const pendingPanels = storyboard.storyboard.filter(
+      (panel) => panel.imageStatus !== "generating",
+    );
+    setStatusMessage(
+      `Generating images for ${pendingPanels.length} storyboard panels.`,
+    );
+
+    for (let index = 0; index < pendingPanels.length; index += 2) {
+      await Promise.all(
+        pendingPanels
+          .slice(index, index + 2)
+          .map((panel) => generatePanelImage(panel.panelNumber)),
+      );
+    }
+  }
+
+  function updatePanelImage(
+    panelNumber: number,
+    update: Partial<StoryboardPackage["storyboard"][number]>,
+  ) {
+    setStoryboard((current) =>
+      current
+        ? {
+            ...current,
+            storyboard: current.storyboard.map((panel) =>
+              panel.panelNumber === panelNumber
+                ? { ...panel, ...update }
+                : panel,
+            ),
+          }
+        : current,
+    );
   }
 
   return (
@@ -237,6 +346,8 @@ export default function Home() {
               <StoryboardOutput
                 data={storyboard}
                 metadata={generationMetadata ?? undefined}
+                onGeneratePanelImage={generatePanelImage}
+                onGenerateAllImages={generateAllPanelImages}
               />
               <EvaluationPanel result={evaluation} />
               <JsonPreview data={storyboard} />
@@ -255,6 +366,25 @@ export default function Home() {
       </footer>
     </main>
   );
+}
+
+function createImageContext(storyboard: StoryboardPackage) {
+  return {
+    visualStyle: storyboard.visualStyle,
+    characterContinuity: storyboard.characters
+      .map(
+        (character) =>
+          `${character.name}: ${character.visualDescription}`,
+      )
+      .join(" "),
+    locationContinuity: storyboard.locations
+      .map(
+        (location) =>
+          `${location.name}: ${location.description} ${location.mood}`,
+      )
+      .join(" "),
+    continuityNotes: storyboard.continuityNotes,
+  };
 }
 
 async function readGenerationStream(

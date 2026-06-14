@@ -9,9 +9,13 @@ import type {
 export function StoryboardOutput({
   data,
   metadata,
+  onGeneratePanelImage,
+  onGenerateAllImages,
 }: {
   data: StoryboardPackage;
   metadata?: GenerationMetadata;
+  onGeneratePanelImage: (panelNumber: number) => Promise<void>;
+  onGenerateAllImages: () => Promise<void>;
 }) {
   const [copyStatus, setCopyStatus] = useState("");
 
@@ -61,17 +65,35 @@ export function StoryboardOutput({
       </header>
 
       <section>
-        <SectionHeading
-          index="01"
-          title="Storyboard"
-          detail={`${data.storyboard.length} frames`}
-        />
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b-[1.5px] border-ink pb-3">
+          <div className="flex items-baseline gap-3">
+            <span className="mono text-xs text-rust">01</span>
+            <h2 className="display text-4xl">Storyboard</h2>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <span className="mono text-[10px] uppercase tracking-wider text-ink/50">
+              {imageProgress(data)}
+            </span>
+            <button
+              type="button"
+              onClick={() => void onGenerateAllImages()}
+              disabled={data.storyboard.some(
+                (panel) => panel.imageStatus === "generating",
+              )}
+              className="mono border-[1.5px] border-ink bg-acid px-3 py-2 text-[10px] font-bold uppercase tracking-wider shadow-[3px_3px_0_#161813] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50"
+              data-testid="generate-all-images"
+            >
+              Generate all images
+            </button>
+          </div>
+        </div>
         <div className="grid gap-6 xl:grid-cols-2">
           {data.storyboard.map((panel) => (
             <PanelCard
               key={panel.panelNumber}
               panel={panel}
               onCopyStatus={announceCopy}
+              onGenerateImage={onGeneratePanelImage}
             />
           ))}
         </div>
@@ -167,15 +189,19 @@ function MetadataItem({
 function PanelCard({
   panel,
   onCopyStatus,
+  onGenerateImage,
 }: {
   panel: StoryboardPackage["storyboard"][number];
   onCopyStatus: (message: string) => void;
+  onGenerateImage: (panelNumber: number) => Promise<void>;
 }) {
   const [copied, setCopied] = useState(false);
 
   async function copyPrompt() {
     try {
-      await navigator.clipboard.writeText(panel.imagePrompt);
+      await navigator.clipboard.writeText(
+        panel.imageGenerationPrompt ?? panel.imagePrompt,
+      );
       setCopied(true);
       onCopyStatus(`Image prompt for panel ${panel.panelNumber} copied.`);
       window.setTimeout(() => setCopied(false), 1300);
@@ -200,6 +226,10 @@ function PanelCard({
         </span>
       </div>
       <div className="flex flex-1 flex-col p-5">
+        <PanelImage
+          panel={panel}
+          onGenerateImage={onGenerateImage}
+        />
         <h3 className="display text-3xl leading-tight">{panel.storyBeat}</h3>
 
         <dl className="mt-5 space-y-4 text-sm">
@@ -223,10 +253,11 @@ function PanelCard({
             </button>
           </div>
           <p className="text-xs leading-relaxed text-paper/80">
-            {panel.imagePrompt}
+            {panel.imageGenerationPrompt ?? panel.imagePrompt}
           </p>
           <p className="mt-3 border-t border-paper/20 pt-3 text-[11px] leading-relaxed text-paper/50">
-            Avoid: {panel.negativePrompt}
+            Avoid:{" "}
+            {panel.imageGenerationNegativePrompt ?? panel.negativePrompt}
           </p>
         </div>
 
@@ -237,6 +268,93 @@ function PanelCard({
       </div>
     </article>
   );
+}
+
+function PanelImage({
+  panel,
+  onGenerateImage,
+}: {
+  panel: StoryboardPackage["storyboard"][number];
+  onGenerateImage: (panelNumber: number) => Promise<void>;
+}) {
+  const generating = panel.imageStatus === "generating";
+  const complete = panel.imageStatus === "complete" && panel.imageUrl;
+  const failed = panel.imageStatus === "failed";
+
+  return (
+    <div
+      className="mb-5 overflow-hidden border-[1.5px] border-ink bg-paper-deep"
+      data-testid={`panel-image-${panel.panelNumber}`}
+      aria-busy={generating}
+    >
+      <div className="relative aspect-video">
+        {complete ? (
+          // Provider domains are dynamic and Replicate URLs are temporary.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={panel.imageUrl}
+            alt={`Generated storyboard image for panel ${panel.panelNumber}: ${panel.storyBeat}`}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="grid h-full place-items-center bg-[linear-gradient(135deg,rgba(22,24,19,.08),transparent_60%)] p-6 text-center">
+            <div>
+              <span className="display text-5xl text-ink/20">
+                {String(panel.panelNumber).padStart(2, "0")}
+              </span>
+              <p className="mono mt-2 text-[10px] uppercase tracking-[0.16em] text-ink/50">
+                {generating
+                  ? "Rendering storyboard frame..."
+                  : failed
+                    ? "Render failed"
+                    : "Image not generated"}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t-[1.5px] border-ink px-3 py-2">
+        <div className="min-w-0">
+          <p className="mono text-[9px] uppercase tracking-wider text-ink/50">
+            {complete
+              ? `${panel.imageProvider} / ${panel.imageModel}`
+              : failed
+                ? panel.imageError
+                : "1024 x 576 / 16:9"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onGenerateImage(panel.panelNumber)}
+          disabled={generating}
+          className="mono shrink-0 border border-ink bg-paper px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider hover:bg-acid disabled:cursor-wait disabled:opacity-50"
+          aria-label={`${failed ? "Retry" : complete ? "Regenerate" : "Generate"} image for panel ${panel.panelNumber}`}
+        >
+          {generating
+            ? "Generating..."
+            : failed
+              ? "Retry"
+              : complete
+                ? "Regenerate"
+                : "Generate image"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function imageProgress(data: StoryboardPackage) {
+  const completed = data.storyboard.filter(
+    (panel) => panel.imageStatus === "complete",
+  ).length;
+  const generating = data.storyboard.filter(
+    (panel) => panel.imageStatus === "generating",
+  ).length;
+
+  if (generating > 0) {
+    return `${completed}/${data.storyboard.length} complete / ${generating} generating`;
+  }
+  return `${completed}/${data.storyboard.length} images`;
 }
 
 function Detail({

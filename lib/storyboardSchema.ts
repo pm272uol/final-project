@@ -50,7 +50,7 @@ export const locationSchema = z.object({
   mood: z.string().trim().min(1, "Location mood is required."),
 }).strict();
 
-export const storyboardPanelSchema = z.object({
+export const generatedStoryboardPanelSchema = z.object({
   panelNumber: z.number().int().positive(),
   storyBeat: z.string().trim().min(1, "Story beat is required."),
   shotType: z.enum(SHOT_TYPES),
@@ -66,7 +66,24 @@ export const storyboardPanelSchema = z.object({
   productionNote: z.string().trim().min(1, "Production note is required."),
 }).strict();
 
-export const storyboardPackageSchema = z.object({
+export const storyboardPanelSchema = generatedStoryboardPanelSchema.extend({
+  imageStatus: z
+    .enum(["not_started", "generating", "complete", "failed"])
+    .optional(),
+  imageUrl: z.string().trim().min(1).optional(),
+  imageError: z.string().trim().min(1).optional(),
+  imageGenerationPrompt: z.string().trim().min(1).optional(),
+  imageGenerationNegativePrompt: z.string().trim().min(1).optional(),
+  imageProvider: z.enum(["mock", "replicate"]).optional(),
+  imageModel: z.string().trim().min(1).optional(),
+  imageSeed: z.number().int().nonnegative().optional(),
+  imageWidth: z.number().int().positive().optional(),
+  imageHeight: z.number().int().positive().optional(),
+  imageGeneratedAt: z.string().datetime().optional(),
+  imageGenerationDurationMs: z.number().int().nonnegative().optional(),
+}).strict();
+
+const storyboardPackageFields = {
   title: z.string().trim().min(1, "Title is required."),
   logline: z.string().trim().min(1, "Logline is required."),
   genre: z.string().trim().min(1, "Genre is required."),
@@ -89,6 +106,20 @@ export const storyboardPackageSchema = z.object({
   productionNotes: z
     .array(z.string().trim().min(1))
     .min(1, "At least one production note is required."),
+};
+
+export const generatedStoryboardPackageSchema = z.object({
+  ...storyboardPackageFields,
+  storyboard: z
+    .array(generatedStoryboardPanelSchema)
+    .min(1, "At least one storyboard panel is required."),
+}).strict() satisfies z.ZodType<StoryboardPackage>;
+
+export const storyboardPackageSchema = z.object({
+  ...storyboardPackageFields,
+  storyboard: z
+    .array(storyboardPanelSchema)
+    .min(1, "At least one storyboard panel is required."),
 }).strict() satisfies z.ZodType<StoryboardPackage>;
 
 export type SchemaValidationResult<T> =

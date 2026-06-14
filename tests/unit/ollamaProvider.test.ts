@@ -44,6 +44,12 @@ describe("OllamaStoryboardProvider", () => {
       type: "object",
       required: expect.arrayContaining(["title", "storyboard"]),
     });
+    expect(
+      requestBody.format.properties.storyboard.items.properties,
+    ).not.toHaveProperty("imageStatus");
+    expect(
+      requestBody.format.properties.storyboard.items.properties,
+    ).not.toHaveProperty("imageUrl");
     expect(result.storyboard.title).toBe(storyboard.title);
     expect(result.metadata).toMatchObject({
       mode: "ollama",

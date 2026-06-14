@@ -44,10 +44,72 @@ test("generates a complete scene-aware storyboard package", async ({ page }) => 
     page.getByTestId("storyboard-output").getByRole("status"),
   ).toContainText("Image prompt for panel 1 copied.");
 
+  await page
+    .getByRole("button", { name: "Generate image for panel 1" })
+    .click();
+  await expect(
+    page.getByTestId("generation-status"),
+  ).toContainText("Image for panel 1 generated successfully.");
+  await expect(
+    page.getByTestId("panel-image-1").locator("img"),
+  ).toHaveAttribute("src", /\/api\/mock-panel-image\?seed=/);
+  await expect(page.getByTestId("panel-image-1")).toContainText(
+    "mock / deterministic-storyboard-placeholder-v1",
+  );
+
+  await page.getByTestId("generate-all-images").click();
+  await expect(
+    page.getByTestId("storyboard-output").locator("img"),
+  ).toHaveCount(4);
+
   await page.getByText("Raw JSON package").click();
   await expect(page.locator("details pre")).toContainText(
     '"title": "The Frame Of Tomorrow"',
   );
+  await expect(page.locator("details pre")).toContainText(
+    '"imageStatus": "complete"',
+  );
+});
+
+test("isolates a failed panel image and allows retry", async ({ page }) => {
+  let attempts = 0;
+  await page.route("**/api/generate-panel-image", async (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Image generation failed. Please retry this panel.",
+        }),
+      });
+      return;
+    }
+
+    await route.continue();
+  });
+
+  await page.goto("/");
+  await page.getByTestId("generate-button").click();
+  await expect(page.getByTestId("storyboard-panel")).toHaveCount(6);
+
+  await page
+    .getByRole("button", { name: "Generate image for panel 1" })
+    .click();
+  await expect(page.getByTestId("panel-image-1")).toContainText(
+    "Image generation failed. Please retry this panel.",
+  );
+  await expect(
+    page.getByRole("button", { name: "Regenerate image for panel 2" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Generate image for panel 2" }),
+  ).toBeEnabled();
+
+  await page.getByRole("button", { name: "Retry image for panel 1" }).click();
+  await expect(
+    page.getByTestId("panel-image-1").locator("img"),
+  ).toBeVisible();
 });
 
 test("shows generated schema validation failures clearly", async ({ page }) => {

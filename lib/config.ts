@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const providerSchema = z.enum(["ollama", "mock"]);
+const imageProviderSchema = z.enum(["mock", "replicate"]);
 const booleanSchema = z
   .enum(["true", "false"])
   .transform((value) => value === "true");
@@ -15,6 +16,19 @@ const configSchema = z.object({
   ollamaTimeoutMs: z.coerce.number().int().positive().default(300_000),
   mockFallback: booleanSchema.default(true),
   maxRequestBytes: z.coerce.number().int().positive().default(16_384),
+  imageProvider: imageProviderSchema.default("mock"),
+  replicateApiToken: z.string().trim().optional(),
+  replicateModel: z
+    .string()
+    .trim()
+    .min(1)
+    .default("stability-ai/sdxl"),
+  imageGenerationTimeoutMs: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120_000),
+  imageMaxRequestBytes: z.coerce.number().int().positive().default(65_536),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -29,5 +43,10 @@ export function getAppConfig(
     ollamaTimeoutMs: environment.OLLAMA_TIMEOUT_MS,
     mockFallback: environment.STORYBOARD_MOCK_FALLBACK,
     maxRequestBytes: environment.STORYBOARD_MAX_REQUEST_BYTES,
+    imageProvider: environment.IMAGE_PROVIDER,
+    replicateApiToken: environment.REPLICATE_API_TOKEN,
+    replicateModel: environment.REPLICATE_MODEL,
+    imageGenerationTimeoutMs: environment.IMAGE_GENERATION_TIMEOUT_MS,
+    imageMaxRequestBytes: environment.IMAGE_MAX_REQUEST_BYTES,
   });
 }

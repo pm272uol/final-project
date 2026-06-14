@@ -49,6 +49,15 @@ describe("buildStoryboardPrompt", () => {
     expect(prompt).toContain(`Tone: ${validInput.tone}`);
     expect(prompt).toContain(`Estimated duration: ${validInput.duration}`);
     expect(prompt).toContain(`Create exactly ${validInput.panelCount} storyboard panels`);
+    expect(prompt).toContain(
+      "role must be exactly one of: protagonist, supporting, antagonist, background",
+    );
+    expect(prompt).toContain(
+      "shotType must be exactly one of: establishing shot, wide shot",
+    );
+    expect(prompt).toContain(
+      "continuityNotes and productionNotes must each be arrays of plain strings",
+    );
     expect(prompt).toContain("Return valid JSON only");
   });
 
@@ -76,6 +85,28 @@ describe("validateStoryboardPackage", () => {
     );
 
     expect(result.success).toBe(true);
+  });
+
+  it("accepts image metadata added after storyboard generation", () => {
+    const storyboard = createMockStoryboard(validInput);
+    storyboard.storyboard[0] = {
+      ...storyboard.storyboard[0],
+      imageStatus: "complete",
+      imageUrl: "/api/mock-panel-image?seed=1",
+      imageGenerationPrompt: "Exact enriched provider prompt.",
+      imageGenerationNegativePrompt: "text, watermark",
+      imageProvider: "mock",
+      imageModel: "deterministic-storyboard-placeholder-v1",
+      imageSeed: 1,
+      imageWidth: 1024,
+      imageHeight: 576,
+      imageGeneratedAt: "2026-06-14T12:00:00.000Z",
+      imageGenerationDurationMs: 5,
+    };
+
+    expect(
+      validateStoryboardPackage(storyboard, validInput.panelCount).success,
+    ).toBe(true);
   });
 
   it("reports nested output fields that violate the schema", () => {

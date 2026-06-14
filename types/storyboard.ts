@@ -71,6 +71,76 @@ export type StoryboardPanel = {
   negativePrompt: string;
   dialogueOrNarration: string;
   productionNote: string;
+  imageStatus?: ImageGenerationStatus;
+  imageUrl?: string;
+  imageError?: string;
+  imageGenerationPrompt?: string;
+  imageGenerationNegativePrompt?: string;
+  imageProvider?: ImageProviderName;
+  imageModel?: string;
+  imageSeed?: number;
+  imageWidth?: number;
+  imageHeight?: number;
+  imageGeneratedAt?: string;
+  imageGenerationDurationMs?: number;
+};
+
+export type ImageGenerationStatus =
+  | "not_started"
+  | "generating"
+  | "complete"
+  | "failed";
+
+export type ImageProviderName = "mock" | "replicate";
+
+export type StoryboardImageContext = {
+  visualStyle: string;
+  characterContinuity: string;
+  locationContinuity?: string;
+  continuityNotes?: string[];
+};
+
+export type ImageGenerationOptions = {
+  width?: number;
+  height?: number;
+  negativePrompt?: string;
+  seed?: number;
+  steps?: number;
+  guidanceScale?: number;
+  outputFormat?: "png" | "jpg" | "webp";
+};
+
+export type ImageGenerationResult = {
+  imageUrl: string;
+  provider: ImageProviderName;
+  model: string;
+  prompt: string;
+  negativePrompt?: string;
+  seed?: number;
+  width: number;
+  height: number;
+  generatedAt: string;
+  durationMs: number;
+};
+
+export type PanelImageGenerationRequest = {
+  panel: StoryboardPanel;
+  imageContext: StoryboardImageContext;
+};
+
+export type PanelImageGenerationResponse = {
+  panelNumber: number;
+  imagePrompt: string;
+  negativePrompt: string;
+  imageUrl: string;
+  imageStatus: "complete";
+  imageProvider: ImageProviderName;
+  imageModel: string;
+  imageSeed?: number;
+  imageWidth: number;
+  imageHeight: number;
+  imageGeneratedAt: string;
+  imageGenerationDurationMs: number;
 };
 
 export type StoryboardPackage = {

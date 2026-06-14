@@ -64,6 +64,10 @@ function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     ollamaTimeoutMs: 300_000,
     mockFallback: true,
     maxRequestBytes: 16_384,
+    imageProvider: "mock",
+    replicateModel: "stability-ai/sdxl",
+    imageGenerationTimeoutMs: 120_000,
+    imageMaxRequestBytes: 65_536,
     ...overrides,
   };
 }

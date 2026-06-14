@@ -7,7 +7,7 @@ import {
   type StoryboardProviderProgress,
 } from "@/lib/providers/types";
 import {
-  storyboardPackageSchema,
+  generatedStoryboardPackageSchema,
   validateStoryboardPackage,
 } from "@/lib/storyboardSchema";
 import type { StoryboardInput } from "@/types/storyboard";
@@ -77,7 +77,7 @@ export class OllamaStoryboardProvider implements StoryboardProvider {
             model: this.model,
             prompt: buildStoryboardPrompt(input),
             stream: streaming,
-            format: z.toJSONSchema(storyboardPackageSchema),
+            format: z.toJSONSchema(generatedStoryboardPackageSchema),
             options: {
               temperature: 0.2,
               num_ctx: 8192,

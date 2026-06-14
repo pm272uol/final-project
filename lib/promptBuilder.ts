@@ -9,8 +9,17 @@ Return only valid JSON, without markdown, commentary, code fences, or extra fiel
 The JSON must contain: title, logline, genre, tone, visualStyle, estimatedDuration,
 characters, locations, storyboard, continuityNotes, and productionNotes.
 
+Each character must contain: name, role, visualDescription, and personality.
+The character role must be exactly one of: protagonist, supporting, antagonist, background.
+
+Each location must contain: name, description, and mood.
+
 Each storyboard panel must contain: panelNumber, storyBeat, shotType, cameraDirection,
 action, setting, imagePrompt, negativePrompt, dialogueOrNarration, and productionNote.
+The shotType must be exactly one of: establishing shot, wide shot, medium shot,
+close-up, extreme close-up, over-the-shoulder, point-of-view shot, tracking shot.
+
+continuityNotes and productionNotes must each be arrays of plain strings.
 
 User input:
 Scene idea: ${input.sceneIdea}
