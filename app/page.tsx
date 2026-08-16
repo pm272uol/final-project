@@ -258,13 +258,13 @@ export default function Home() {
         <div className="mx-auto flex max-w-[1500px] items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="grid h-8 w-8 place-items-center bg-ink text-acid">
-              F
+              
             </span>
-            <span className="font-bold tracking-tight">Framewright</span>
+            <span className="font-bold tracking-tight">CM3070</span>
           </div>
           <div className="mono flex items-center gap-2 text-[10px] uppercase tracking-wider">
             <span className="h-2 w-2 bg-rust" />
-            Ollama local / mock fallback
+            Ollama local
           </div>
         </div>
       </nav>
@@ -274,18 +274,22 @@ export default function Home() {
           <p className="mono mb-4 text-xs uppercase tracking-[0.2em] text-rust">
             Visual pre-production for short films
           </p>
-          <h1 className="display max-w-5xl text-6xl leading-[0.88] tracking-tight sm:text-8xl lg:text-[7.5rem]">
+          {/* <h1 className="display max-w-5xl text-6xl leading-[0.88] tracking-tight sm:text-8xl lg:text-[7.5rem]">
             Turn a rough scene into a{" "}
             <span className="italic text-rust">shootable</span> sequence.
+          </h1> */}
+          <h1 className="display max-w-5xl text-6xl leading-[0.88] tracking-tight sm:text-8xl lg:text-[7.5rem]">
+            Final project
+
           </h1>
-          <div className="mt-8 flex max-w-3xl items-start gap-4">
+          {/* <div className="mt-8 flex max-w-3xl items-start gap-4">
             <span className="mt-2 block h-[1.5px] w-12 shrink-0 bg-ink" />
             <p className="text-sm leading-relaxed text-ink/65 sm:text-base">
               Shape story beats, camera direction, visual prompts, continuity,
               and production notes using local Ollama with a deterministic mock
               fallback.
             </p>
-          </div>
+          </div> */}
         </div>
       </header>
 
