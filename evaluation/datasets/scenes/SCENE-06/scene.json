@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "id": "SCENE-06",
+  "title": "Observatory evacuation",
+  "complexity": "complex",
+  "storyboardInput": {
+    "sceneIdea": "At a remote mountain observatory before dawn, an astronomer discovers a fast-moving wildfire reflected in the telescope mirror. She alerts a maintenance engineer and two visiting students while automated shutters begin closing. One student copies the final observation to a yellow data drive, the engineer struggles with a jammed south door, and the astronomer uses a red emergency axe to break the frozen latch. They emerge into blue pre-dawn snow as orange firelight reaches the ridge behind the silver dome.",
+    "genre": "Drama",
+    "visualStyle": "Cinematic live action",
+    "duration": "3 minutes",
+    "panelCount": 10,
+    "tone": "Tense",
+    "targetFormat": "Storyboard + shot list"
+  },
+  "assets": { "referenceImage": "scene-06.png" },
+  "groundTruth": {
+    "criticalDetails": [
+      { "id": "wildfire-reflection", "aliases": ["wildfire reflected", "fire reflected in the telescope mirror"] },
+      { "id": "yellow-drive", "aliases": ["yellow data drive", "yellow drive"] },
+      { "id": "south-door", "aliases": ["south door"] },
+      { "id": "red-axe", "aliases": ["red emergency axe", "red axe"] }
+    ],
+    "entities": [
+      { "id": "astronomer", "type": "character", "aliases": ["astronomer"], "required": true },
+      { "id": "engineer", "type": "character", "aliases": ["maintenance engineer", "engineer"], "required": true },
+      { "id": "students", "type": "character", "aliases": ["two visiting students", "two students"], "required": true },
+      { "id": "data-drive", "type": "object", "aliases": ["yellow data drive", "yellow drive"], "required": true },
+      { "id": "axe", "type": "object", "aliases": ["red emergency axe", "red axe"], "required": true },
+      { "id": "observatory", "type": "environment", "aliases": ["mountain observatory", "observatory", "silver dome"], "required": true },
+      { "id": "wildfire", "type": "environment", "aliases": ["wildfire", "orange firelight"], "required": true }
+    ],
+    "attributes": [
+      { "entityId": "data-drive", "name": "colour", "acceptedValues": ["yellow data drive", "yellow drive"], "required": true },
+      { "entityId": "axe", "name": "colour", "acceptedValues": ["red emergency axe", "red axe"], "required": true },
+      { "entityId": "exterior", "name": "colour-contrast", "acceptedValues": ["blue pre-dawn snow", "blue snow", "orange firelight"], "required": true }
+    ],
+    "relationships": [
+      { "subject": "astronomer", "relation": "sees wildfire in", "object": "telescope mirror", "aliases": ["wildfire reflected in the telescope mirror", "fire in the telescope mirror"], "required": true },
+      { "subject": "student", "relation": "copies observation to", "object": "yellow data drive", "aliases": ["copies the final observation to a yellow data drive", "saves the observation to the yellow drive"], "required": true },
+      { "subject": "astronomer", "relation": "breaks", "object": "frozen latch", "aliases": ["break the frozen latch", "breaks the latch with the axe"], "required": true }
+    ],
+    "exclusions": ["daylight", "green data drive", "north door", "black axe"],
+    "expectedPanelCount": 10,
+    "requiredShotTypes": ["establishing shot", "close-up", "tracking shot", "wide shot"]
+  }
+}

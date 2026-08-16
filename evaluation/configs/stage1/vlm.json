@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "id": "vlm-stage1-local",
+  "category": "vlm",
+  "stage": "stage1",
+  "dataset": "../../datasets/dataset.json",
+  "modelStore": "/Volumes/G-RAID/Ollama/Models/models",
+  "outputRoot": "../../results",
+  "cacheRoot": "../../.cache",
+  "provider": {
+    "type": "ollama",
+    "baseUrl": "http://127.0.0.1:11434"
+  },
+  "models": [
+    {
+      "id": "moondream-18b",
+      "displayName": "Moondream 2 1.8B",
+      "model": "moondream:1.8b",
+      "execution": "local"
+    },
+    {
+      "id": "qwen35-2b",
+      "displayName": "Qwen 3.5 2B",
+      "model": "qwen3.5:2b",
+      "execution": "local"
+    },
+    {
+      "id": "qwen35-4b",
+      "displayName": "Qwen 3.5 4B",
+      "model": "qwen3.5:4b",
+      "execution": "local"
+    },
+    {
+      "id": "gemma4-12b",
+      "displayName": "Gemma 4 12B (Ollama vision substitute)",
+      "model": "gemma4:12b",
+      "version": "4eb23ef187e2",
+      "execution": "local"
+    },
+    {
+      "id": "qwen35-9b",
+      "displayName": "Qwen 3.5 9B",
+      "model": "qwen3.5:9b",
+      "version": "6488c96fa5fa",
+      "execution": "local"
+    },
+    {
+      "id": "llama32-vision-11b",
+      "displayName": "Llama 3.2 Vision 11B",
+      "model": "llama3.2-vision:11b",
+      "execution": "local"
+    }
+  ],
+  "settings": {
+    "promptMode": "prompt_only",
+    "runMode": "quality",
+    "contextLength": 8192,
+    "temperature": 0,
+    "seed": 42,
+    "maxOutputTokens": 2048,
+    "thinking": false,
+    "warmupRuns": 1,
+    "measuredRuns": 3,
+    "timeoutMs": 300000,
+    "useCache": true,
+    "unloadAfterModel": true
+  }
+}

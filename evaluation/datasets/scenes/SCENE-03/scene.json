@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "id": "SCENE-03",
+  "title": "Rainy rooftop exchange",
+  "complexity": "medium",
+  "storyboardInput": {
+    "sceneIdea": "On a rain-soaked city rooftop at night, a paramedic hands a sealed silver case to a nervous journalist. A red aircraft warning light pulses behind them while a helicopter searchlight sweeps across nearby buildings, forcing both people to hide behind a concrete ventilation unit.",
+    "genre": "Thriller",
+    "visualStyle": "Cinematic live action",
+    "duration": "60 seconds",
+    "panelCount": 6,
+    "tone": "Tense",
+    "targetFormat": "Storyboard + shot list"
+  },
+  "assets": { "referenceImage": "scene-03.png" },
+  "groundTruth": {
+    "criticalDetails": [
+      { "id": "silver-case", "aliases": ["silver case", "sealed case"] },
+      { "id": "warning-light", "aliases": ["red warning light", "aircraft warning light"] },
+      { "id": "searchlight", "aliases": ["helicopter searchlight", "searchlight"] }
+    ],
+    "entities": [
+      { "id": "paramedic", "type": "character", "aliases": ["paramedic"], "required": true },
+      { "id": "journalist", "type": "character", "aliases": ["journalist"], "required": true },
+      { "id": "case", "type": "object", "aliases": ["sealed silver case", "silver case"], "required": true },
+      { "id": "rooftop", "type": "environment", "aliases": ["rooftop", "city roof"], "required": true },
+      { "id": "vent", "type": "object", "aliases": ["ventilation unit", "concrete vent"], "required": true }
+    ],
+    "attributes": [
+      { "entityId": "rooftop", "name": "weather", "acceptedValues": ["rain-soaked", "rainy", "rain"], "required": true },
+      { "entityId": "warning-light", "name": "colour", "acceptedValues": ["red aircraft warning light", "red warning light"], "required": true }
+    ],
+    "relationships": [
+      { "subject": "paramedic", "relation": "hands", "object": "case to journalist", "aliases": ["paramedic hands", "hands a sealed silver case"], "required": true },
+      { "subject": "paramedic and journalist", "relation": "hide behind", "object": "ventilation unit", "aliases": ["hide behind a concrete ventilation unit", "take cover behind the vent"], "required": true }
+    ],
+    "exclusions": ["daylight", "dry rooftop", "open case"],
+    "expectedPanelCount": 6,
+    "requiredShotTypes": ["establishing shot", "over-the-shoulder", "wide shot"]
+  }
+}

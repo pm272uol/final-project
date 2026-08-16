@@ -227,6 +227,10 @@ coverage/
 playwright-report/
 test-results/
 
+# Model evaluation runtime output
+evaluation/results/
+evaluation/.cache/
+
 # Application source (overrides the Python template's lib/ rule above)
 !lib/
 !lib/**

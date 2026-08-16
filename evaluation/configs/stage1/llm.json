@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "id": "llm-stage1-local",
+  "category": "llm",
+  "stage": "stage1",
+  "dataset": "../../datasets/dataset.json",
+  "modelStore": "/Volumes/G-RAID/Ollama/Models/models",
+  "outputRoot": "../../results",
+  "cacheRoot": "../../.cache",
+  "provider": {
+    "type": "ollama",
+    "baseUrl": "http://127.0.0.1:11434"
+  },
+  "models": [
+    {
+      "id": "qwen3-06b",
+      "displayName": "Qwen3 0.6B",
+      "model": "qwen3:0.6b",
+      "execution": "local"
+    },
+    {
+      "id": "phi4-mini",
+      "displayName": "Phi-4 Mini",
+      "model": "phi4-mini:3.8b",
+      "execution": "local"
+    },
+    {
+      "id": "gemma4-e4b",
+      "displayName": "Gemma 4 E4B",
+      "model": "gemma4:latest",
+      "version": "c6eb396dbd59",
+      "execution": "local"
+    },
+    {
+      "id": "qwen3-8b",
+      "displayName": "Qwen3 8B",
+      "model": "qwen3:8b",
+      "execution": "local"
+    },
+    {
+      "id": "qwen3-14b",
+      "displayName": "Qwen3 14B",
+      "model": "qwen3:14b",
+      "execution": "local"
+    },
+    {
+      "id": "gpt-oss-20b",
+      "displayName": "GPT-OSS 20B",
+      "model": "gpt-oss:20b",
+      "execution": "local"
+    }
+  ],
+  "settings": {
+    "promptMode": "prompt_only",
+    "runMode": "quality",
+    "contextLength": 8192,
+    "temperature": 0,
+    "seed": 42,
+    "maxOutputTokens": 4096,
+    "thinking": false,
+    "warmupRuns": 1,
+    "measuredRuns": 3,
+    "timeoutMs": 300000,
+    "useCache": true,
+    "unloadAfterModel": true
+  }
+}

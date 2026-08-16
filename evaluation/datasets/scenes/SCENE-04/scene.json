@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "id": "SCENE-04",
+  "title": "Kitchen time loop",
+  "complexity": "medium",
+  "storyboardInput": {
+    "sceneIdea": "In a bright but cramped family kitchen, two brothers prepare a birthday cake while their grandmother watches from the doorway. Each time the younger brother drops an egg, the wall clock jumps back ten seconds and only the grandmother notices. On the third loop she catches the egg before it falls.",
+    "genre": "Comedy",
+    "visualStyle": "Indie short film",
+    "duration": "90 seconds",
+    "panelCount": 6,
+    "tone": "Funny",
+    "targetFormat": "Storyboard + shot list"
+  },
+  "assets": { "referenceImage": "scene-04.png" },
+  "groundTruth": {
+    "criticalDetails": [
+      { "id": "two-brothers", "aliases": ["two brothers", "brothers"] },
+      { "id": "ten-seconds", "aliases": ["ten seconds", "10 seconds"] },
+      { "id": "third-loop", "aliases": ["third loop", "third time"] }
+    ],
+    "entities": [
+      { "id": "older-brother", "type": "character", "aliases": ["older brother"], "required": true },
+      { "id": "younger-brother", "type": "character", "aliases": ["younger brother"], "required": true },
+      { "id": "grandmother", "type": "character", "aliases": ["grandmother", "grandma"], "required": true },
+      { "id": "egg", "type": "object", "aliases": ["egg"], "required": true },
+      { "id": "clock", "type": "object", "aliases": ["wall clock", "clock"], "required": true },
+      { "id": "cake", "type": "object", "aliases": ["birthday cake", "cake"], "required": true }
+    ],
+    "attributes": [
+      { "entityId": "kitchen", "name": "size-light", "acceptedValues": ["bright but cramped", "bright cramped kitchen"], "required": true },
+      { "entityId": "clock", "name": "jump", "acceptedValues": ["jumps back ten seconds", "turns back ten seconds"], "required": true }
+    ],
+    "relationships": [
+      { "subject": "grandmother", "relation": "watches from", "object": "doorway", "aliases": ["grandmother watches from the doorway", "grandmother in the doorway"], "required": true },
+      { "subject": "grandmother", "relation": "catches", "object": "egg", "aliases": ["grandmother catches the egg", "catches the egg"], "required": true }
+    ],
+    "exclusions": ["grandmother resets time", "egg breaks on third loop"],
+    "expectedPanelCount": 6,
+    "requiredShotTypes": ["wide shot", "close-up", "medium shot"]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "id": "SCENE-05",
+  "title": "Flooded archive rescue",
+  "complexity": "complex",
+  "storyboardInput": {
+    "sceneIdea": "During a power failure in a flooded underground archive, an archivist, a firefighter, and a teenage volunteer rescue a water-damaged box of handwritten maps. Shelves lean into the rising water, emergency lamps cast green reflections, and loose pages drift toward a blocked drain. The firefighter braces a shelf while the teenager retrieves the pages and the archivist carries the sealed map box toward a stairwell marked EXIT.",
+    "genre": "Adventure",
+    "visualStyle": "Cinematic live action",
+    "duration": "2 minutes",
+    "panelCount": 8,
+    "tone": "Tense",
+    "targetFormat": "Storyboard + shot list"
+  },
+  "assets": { "referenceImage": "scene-05.png" },
+  "groundTruth": {
+    "criticalDetails": [
+      { "id": "three-people", "aliases": ["archivist", "firefighter", "teenage volunteer"] },
+      { "id": "map-box", "aliases": ["map box", "box of handwritten maps"] },
+      { "id": "green-reflections", "aliases": ["green reflections", "green light"] },
+      { "id": "blocked-drain", "aliases": ["blocked drain"] }
+    ],
+    "entities": [
+      { "id": "archivist", "type": "character", "aliases": ["archivist"], "required": true },
+      { "id": "firefighter", "type": "character", "aliases": ["firefighter"], "required": true },
+      { "id": "teenager", "type": "character", "aliases": ["teenage volunteer", "teenager"], "required": true },
+      { "id": "map-box", "type": "object", "aliases": ["sealed map box", "box of handwritten maps"], "required": true },
+      { "id": "pages", "type": "object", "aliases": ["loose pages", "pages"], "required": true },
+      { "id": "archive", "type": "environment", "aliases": ["underground archive", "archive"], "required": true },
+      { "id": "exit", "type": "object", "aliases": ["exit sign", "stairwell marked exit"], "required": true }
+    ],
+    "attributes": [
+      { "entityId": "archive", "name": "condition", "acceptedValues": ["flooded", "rising water"], "required": true },
+      { "entityId": "lamps", "name": "colour", "acceptedValues": ["green reflections", "green emergency light"], "required": true }
+    ],
+    "relationships": [
+      { "subject": "firefighter", "relation": "braces", "object": "shelf", "aliases": ["firefighter braces a shelf", "holds up the shelf"], "required": true },
+      { "subject": "teenager", "relation": "retrieves", "object": "pages", "aliases": ["teenager retrieves the pages", "volunteer gathers the pages"], "required": true },
+      { "subject": "archivist", "relation": "carries", "object": "map box", "aliases": ["archivist carries the sealed map box", "carries the map box"], "required": true }
+    ],
+    "exclusions": ["fire", "daylight", "dry floor"],
+    "expectedPanelCount": 8,
+    "requiredShotTypes": ["establishing shot", "wide shot", "tracking shot", "close-up"]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "id": "llm-smoke-local",
+  "category": "llm",
+  "stage": "stage1",
+  "dataset": "../../datasets/dataset.json",
+  "sceneIds": ["SCENE-01"],
+  "modelStore": "/Volumes/G-RAID/Ollama/Models/models",
+  "outputRoot": "../../results",
+  "cacheRoot": "../../.cache",
+  "provider": {
+    "type": "ollama",
+    "baseUrl": "http://127.0.0.1:11434"
+  },
+  "models": [
+    {
+      "id": "qwen35-9b",
+      "displayName": "Qwen 3.5 9B",
+      "model": "qwen3.5:9b",
+      "version": "6488c96fa5fa",
+      "execution": "local"
+    }
+  ],
+  "settings": {
+    "promptMode": "constrained",
+    "runMode": "quality",
+    "contextLength": 8192,
+    "temperature": 0,
+    "seed": 42,
+    "maxOutputTokens": 4096,
+    "thinking": false,
+    "warmupRuns": 0,
+    "measuredRuns": 1,
+    "timeoutMs": 300000,
+    "useCache": true,
+    "unloadAfterModel": true
+  }
+}

@@ -64,6 +64,19 @@ npm run test:ollama
 npm run test:all
 ```
 
+## Model evaluation tool
+
+The repository includes a separate local-first model evaluation CLI:
+
+```bash
+npm run eval:doctor
+npm run eval:smoke
+npm run eval -- run evaluation/configs/stage1/llm.json
+```
+
+See the [evaluator quick start](evaluation/README.md) for candidate downloads,
+configuration rules, and result files.
+
 The unit and API suite uses Vitest. The browser workflow and responsive layout
 checks use Playwright with Chromium.
 
@@ -71,4 +84,5 @@ checks use Playwright with Chromium.
 
 - [Runtime schema validation](docs/schema-validation.md)
 - [Storyboard evaluation and scoring](docs/evaluation.md)
+- [Model evaluation tool, local/cloud policy, and download plan](docs/model-evaluation-tool.md)
 - [Image-generation architecture and limitations](docs/image-generation.md)

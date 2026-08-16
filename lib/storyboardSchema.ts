@@ -7,8 +7,8 @@ import {
   TARGET_FORMATS,
   TONES,
   VISUAL_STYLES,
-} from "@/lib/storyboardOptions";
-import type { StoryboardInput, StoryboardPackage } from "@/types/storyboard";
+} from "./storyboardOptions.ts";
+import type { StoryboardInput, StoryboardPackage } from "../types/storyboard.ts";
 
 export const storyboardInputSchema = z.object({
   sceneIdea: z

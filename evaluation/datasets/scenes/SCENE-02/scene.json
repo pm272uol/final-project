@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "id": "SCENE-02",
+  "title": "Projectionist's discovery",
+  "complexity": "simple",
+  "storyboardInput": {
+    "sceneIdea": "A tired night-shift projectionist in an old cinema finds a single film frame showing tomorrow's sunrise over the same building. He holds it against the projector beam as the empty seats flicker behind him.",
+    "genre": "Thriller",
+    "visualStyle": "Noir",
+    "duration": "60 seconds",
+    "panelCount": 4,
+    "tone": "Mysterious",
+    "targetFormat": "Storyboard + shot list"
+  },
+  "assets": { "referenceImage": "scene-02.png" },
+  "groundTruth": {
+    "criticalDetails": [
+      { "id": "night-shift", "aliases": ["night shift", "night-shift"] },
+      { "id": "future-frame", "aliases": ["tomorrow's sunrise", "tomorrow sunrise", "future sunrise"] }
+    ],
+    "entities": [
+      { "id": "projectionist", "type": "character", "aliases": ["projectionist"], "required": true },
+      { "id": "film-frame", "type": "object", "aliases": ["film frame", "single frame"] , "required": true },
+      { "id": "projector", "type": "object", "aliases": ["projector", "projector beam"], "required": true },
+      { "id": "cinema", "type": "environment", "aliases": ["old cinema", "cinema", "theatre"], "required": true }
+    ],
+    "attributes": [
+      { "entityId": "projectionist", "name": "state", "acceptedValues": ["tired", "weary"], "required": true },
+      { "entityId": "film-frame", "name": "content", "acceptedValues": ["tomorrow's sunrise", "future sunrise"], "required": true }
+    ],
+    "relationships": [
+      { "subject": "projectionist", "relation": "holds in", "object": "projector beam", "aliases": ["holds it against the projector beam", "frame in the projector beam"], "required": true }
+    ],
+    "exclusions": ["audience", "modern multiplex"],
+    "expectedPanelCount": 4,
+    "requiredShotTypes": ["establishing shot", "close-up"]
+  }
+}

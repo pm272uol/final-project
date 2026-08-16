@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "id": "SCENE-01",
+  "title": "Red coat and bicycle",
+  "complexity": "simple",
+  "storyboardInput": {
+    "sceneIdea": "A young girl in a red coat stands beside a blue bicycle in a quiet park at sunset. She notices a paper aeroplane land at her feet, picks it up, and smiles toward someone outside the frame.",
+    "genre": "Drama",
+    "visualStyle": "Cinematic live action",
+    "duration": "30 seconds",
+    "panelCount": 4,
+    "tone": "Warm",
+    "targetFormat": "Storyboard + shot list"
+  },
+  "assets": { "referenceImage": "scene-01.png" },
+  "groundTruth": {
+    "criticalDetails": [
+      { "id": "red-coat", "aliases": ["red coat"] },
+      { "id": "blue-bicycle", "aliases": ["blue bicycle", "blue bike"] },
+      { "id": "paper-aeroplane", "aliases": ["paper aeroplane", "paper airplane"] }
+    ],
+    "entities": [
+      { "id": "girl", "type": "character", "aliases": ["young girl", "girl"], "required": true },
+      { "id": "bicycle", "type": "object", "aliases": ["blue bicycle", "blue bike"], "required": true },
+      { "id": "aeroplane", "type": "object", "aliases": ["paper aeroplane", "paper airplane"], "required": true },
+      { "id": "park", "type": "environment", "aliases": ["park"], "required": true }
+    ],
+    "attributes": [
+      { "entityId": "girl", "name": "coat-colour", "acceptedValues": ["red coat"], "required": true },
+      { "entityId": "bicycle", "name": "colour", "acceptedValues": ["blue bicycle", "blue bike"], "required": true },
+      { "entityId": "park", "name": "time", "acceptedValues": ["sunset", "golden hour"], "required": true }
+    ],
+    "relationships": [
+      { "subject": "girl", "relation": "beside", "object": "bicycle", "aliases": ["girl beside the bicycle", "stands beside a blue bicycle"], "required": true }
+    ],
+    "exclusions": ["rain", "second visible character"],
+    "expectedPanelCount": 4,
+    "requiredShotTypes": ["wide shot", "close-up"]
+  }
+}

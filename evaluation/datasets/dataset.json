@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "Framewright Stage 1 scenes",
+  "scenes": [
+    "scenes/SCENE-01/scene.json",
+    "scenes/SCENE-02/scene.json",
+    "scenes/SCENE-03/scene.json",
+    "scenes/SCENE-04/scene.json",
+    "scenes/SCENE-05/scene.json",
+    "scenes/SCENE-06/scene.json"
+  ]
+}
