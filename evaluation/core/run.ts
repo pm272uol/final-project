@@ -49,6 +49,25 @@ export async function runEvaluation(options: {
         `Ollama model ${configuredModel.model} does not expose the required ${requiredCapability} capability.`,
       );
     }
+    const supportsThinking = installedModel.capabilities?.includes("thinking") ?? false;
+    if (supportsThinking && !configuredModel.thinking) {
+      throw new Error(
+        `Ollama model ${configuredModel.model} supports thinking, but thinking is not enabled in the evaluation config.`,
+      );
+    }
+    if (!supportsThinking && configuredModel.thinking) {
+      throw new Error(
+        `Ollama model ${configuredModel.model} does not expose thinking capability.`,
+      );
+    }
+    if (
+      configuredModel.model.startsWith("gpt-oss") &&
+      !["low", "medium", "high"].includes(String(configuredModel.thinking))
+    ) {
+      throw new Error(
+        `GPT-OSS model ${configuredModel.model} requires thinking to be low, medium, or high.`,
+      );
+    }
     if (
       configuredModel.version &&
       installedModel.digest &&
@@ -103,7 +122,7 @@ export async function runEvaluation(options: {
             temperature: config.settings.temperature,
             seed: config.settings.seed,
             maxOutputTokens: config.settings.maxOutputTokens,
-            thinking: config.settings.thinking,
+            thinking: model.thinking ?? false,
           },
           repetition,
         });
@@ -168,6 +187,7 @@ export async function runEvaluation(options: {
             : { referenceImage: scene.referenceImagePath, prompt },
           rawOutput: inference.rawOutput,
           rawThinking: inference.rawThinking,
+          outputChannel: inference.outputChannel,
           rawResponseEnvelope: inference.rawResponseEnvelope,
           parsedOutput: evaluated.parsedOutput,
           metrics: evaluated.metrics,
@@ -214,6 +234,7 @@ async function invoke(
   return {
     rawOutput: capture ? result.rawOutput : "",
     rawThinking: capture ? result.rawThinking : undefined,
+    outputChannel: result.outputChannel,
     rawResponseEnvelope: capture ? result.rawResponseEnvelope : undefined,
     actualModel: result.actualModel,
     capturedAt: new Date().toISOString(),
@@ -230,7 +251,7 @@ async function invoke(
 
 function classifyFailure(error: unknown): NonNullable<InvocationRecord["failure"]> {
   const message = messageOf(error);
-  if (/timed out|abort/i.test(message)) return { code: "F03", message };
+  if (/timed out|inactive|abort/i.test(message)) return { code: "F03", message };
   if (/out of memory|allocate memory|oom/i.test(message)) return { code: "F02", message };
   if (/not found|pull model|model.*missing/i.test(message)) return { code: "F01", message };
   if (/Ollama returned|fetch failed|connect/i.test(message)) return { code: "F08", message };

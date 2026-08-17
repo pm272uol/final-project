@@ -94,16 +94,30 @@ async function doctor(configArgument: string) {
     const capabilityMissing = Boolean(
       installedModel && !installedModel.capabilities?.includes(requiredCapability),
     );
+    const supportsThinking = installedModel?.capabilities?.includes("thinking") ?? false;
+    const thinkingMissing = supportsThinking && !model.thinking;
+    const unsupportedThinking = !supportsThinking && Boolean(model.thinking);
+    const invalidGptOssThinking = model.model.startsWith("gpt-oss") &&
+      !["low", "medium", "high"].includes(String(model.thinking));
     checks.push({
       label: model.displayName,
-      status: present && !digestMismatch && !capabilityMissing ? "PASS" : "FAIL",
+      status: present && !digestMismatch && !capabilityMissing && !thinkingMissing &&
+          !unsupportedThinking && !invalidGptOssThinking
+        ? "PASS"
+        : "FAIL",
       detail: !present
         ? `${model.model} requires download`
         : digestMismatch
           ? `expected ${model.version}, found ${installedModel?.digest}`
           : capabilityMissing
             ? `${model.model} lacks required ${requiredCapability} capability`
-          : `${model.model} @ ${installedModel?.digest?.slice(0, 12) ?? "unknown digest"}`,
+          : thinkingMissing
+            ? `${model.model} supports thinking but it is not enabled`
+            : unsupportedThinking
+              ? `${model.model} does not support configured thinking mode`
+              : invalidGptOssThinking
+                ? `${model.model} requires thinking low, medium, or high`
+                : `${model.model} @ ${installedModel?.digest?.slice(0, 12) ?? "unknown digest"}; thinking ${supportsThinking ? String(model.thinking) : "not supported"}`,
     });
   }
   const assetProblems = await inspectRequiredAssets(config, scenes);

@@ -57,6 +57,7 @@ export async function writeRunManifest(
 export type CachedInference = {
   rawOutput: string;
   rawThinking?: string;
+  outputChannel?: "response" | "thinking_json_fallback";
   rawResponseEnvelope?: unknown;
   actualModel: string;
   capturedAt: string;

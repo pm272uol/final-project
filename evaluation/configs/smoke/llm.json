@@ -18,7 +18,8 @@
       "displayName": "Qwen 3.5 9B",
       "model": "qwen3.5:9b",
       "version": "6488c96fa5fa",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     }
   ],
   "settings": {
@@ -28,10 +29,9 @@
     "temperature": 0,
     "seed": 42,
     "maxOutputTokens": 4096,
-    "thinking": false,
     "warmupRuns": 0,
     "measuredRuns": 1,
-    "timeoutMs": 300000,
+    "timeoutMs": 180000,
     "useCache": true,
     "unloadAfterModel": true
   }

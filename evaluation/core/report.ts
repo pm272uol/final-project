@@ -29,6 +29,10 @@ export function summariseRecords(records: InvocationRecord[]) {
       modelId,
       displayName: items[0]?.model.displayName ?? modelId,
       execution: items[0]?.model.execution ?? "local",
+      thinkingMode: describeThinkingMode(items[0]),
+      thinkingJsonFallbackRate: average(items.map((item) =>
+        item.outputChannel === "thinking_json_fallback" ? 1 : 0
+      )),
       invocations: items.length,
       successRate: ratio(succeeded.length, items.length),
       jsonParseRate: average(items.map((item) => item.metrics.jsonParsed ? 1 : 0)),
@@ -51,7 +55,8 @@ type Summary = ReturnType<typeof summariseRecords>[number];
 
 function toCsv(summaries: Summary[]) {
   const headings: Array<keyof Summary> = [
-    "modelId", "displayName", "execution", "invocations", "successRate",
+    "modelId", "displayName", "execution", "thinkingMode", "thinkingJsonFallbackRate",
+    "invocations", "successRate",
     "jsonParseRate", "schemaValidity", "completeness", "entityRecall",
     "attributeAccuracy", "relationshipAccuracy", "instructionAdherence", "panelCountRate",
     "deterministicScore", "medianWallTimeMs", "medianTokensPerSecond", "failures",
@@ -63,12 +68,21 @@ function toCsv(summaries: Summary[]) {
 
 function toMarkdown(runId: string, summaries: Summary[]) {
   const rows = summaries.map((item) =>
-    `| ${item.displayName} | ${item.execution} | ${percent(item.successRate)} | ${percent(item.schemaValidity)} | ${percent(item.completeness)} | ${percent(item.entityRecall)} | ${percent(item.instructionAdherence)} | ${formatNumber(item.medianWallTimeMs)} | ${item.failures} |`,
+    `| ${item.displayName} | ${item.execution} | ${item.thinkingMode} | ${percent(item.thinkingJsonFallbackRate)} | ${percent(item.successRate)} | ${percent(item.schemaValidity)} | ${percent(item.completeness)} | ${percent(item.entityRecall)} | ${percent(item.instructionAdherence)} | ${formatNumber(item.medianWallTimeMs)} | ${item.failures} |`,
   ).join("\n");
   return `# Evaluation report: ${runId}\n\n` +
     `Performance values are grouped by execution location and must not be compared as model-only inference speed across local and cloud environments.\n\n` +
-    `| Model | Execution | Success | Schema valid | Completeness | Entity recall | Instruction adherence | Median wall time (ms) | Failures |\n` +
-    `|---|---|---:|---:|---:|---:|---:|---:|---:|\n${rows}\n`;
+    `| Model | Execution | Thinking | Thinking JSON fallback | Success | Schema valid | Completeness | Entity recall | Instruction adherence | Median wall time (ms) | Failures |\n` +
+    `|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|\n${rows}\n`;
+}
+
+function describeThinkingMode(record: InvocationRecord | undefined) {
+  if (!record) return "not configured";
+  const legacyMode = (record.settings as unknown as { thinking?: boolean }).thinking;
+  const mode = record.model.thinking ?? legacyMode;
+  if (mode === true) return "enabled";
+  if (mode === false) return "disabled";
+  return mode ?? "not configured";
 }
 
 function humanReview(records: InvocationRecord[]) {

@@ -17,6 +17,7 @@ type OllamaEnvelope = {
 export type RunnerResult = {
   rawOutput: string;
   rawThinking?: string;
+  outputChannel: "response" | "thinking_json_fallback";
   rawResponseEnvelope: OllamaEnvelope;
   actualModel: string;
   wallTimeMs: number;
@@ -35,13 +36,13 @@ export async function runOllama(options: {
   format?: unknown;
 }): Promise<RunnerResult> {
   const { config, model, prompt, imagePath, format } = options;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.settings.timeoutMs);
+  const inactivityTimeout = createInactivityTimeout(config.settings.timeoutMs);
   const started = performance.now();
 
   try {
     const isVision = config.category === "vlm";
     const endpoint = isVision ? "/api/chat" : "/api/generate";
+    const thinking = model.thinking;
     const requestBody = isVision
       ? {
           model: model.model,
@@ -50,8 +51,8 @@ export async function runOllama(options: {
             content: prompt,
             images: imagePath ? [(await readFile(imagePath)).toString("base64")] : [],
           }],
-          stream: false,
-          think: config.settings.thinking,
+          stream: true,
+          ...(thinking === undefined ? {} : { think: thinking }),
           format,
           keep_alive: "10m",
           options: ollamaOptions(config),
@@ -59,8 +60,8 @@ export async function runOllama(options: {
       : {
           model: model.model,
           prompt,
-          stream: false,
-          think: config.settings.thinking,
+          stream: true,
+          ...(thinking === undefined ? {} : { think: thinking }),
           format,
           keep_alive: "10m",
           options: ollamaOptions(config),
@@ -70,20 +71,24 @@ export async function runOllama(options: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
-      signal: controller.signal,
+      signal: inactivityTimeout.controller.signal,
     });
-    const text = await response.text();
-    if (!response.ok) throw new Error(`Ollama returned ${response.status}: ${text.slice(0, 500)}`);
-
-    let envelope: OllamaEnvelope;
-    try {
-      envelope = JSON.parse(text) as OllamaEnvelope;
-    } catch {
-      throw new Error(`Ollama returned a malformed response envelope: ${text.slice(0, 500)}`);
+    inactivityTimeout.reset();
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Ollama returned ${response.status}: ${text.slice(0, 500)}`);
     }
-    const rawOutput = isVision ? envelope.message?.content : envelope.response;
+    const envelope = await readOllamaStream(
+      response,
+      isVision,
+      inactivityTimeout.reset,
+      inactivityTimeout.controller.signal,
+    );
+    const responseOutput = isVision ? envelope.message?.content : envelope.response;
     const rawThinking = isVision ? envelope.message?.thinking : envelope.thinking;
-    if (typeof rawOutput !== "string") throw new Error("Ollama response did not contain model output.");
+    if (typeof responseOutput !== "string") throw new Error("Ollama response did not contain model output.");
+    const useThinkingFallback = !responseOutput.trim() && isCompleteJson(rawThinking);
+    const rawOutput = useThinkingFallback ? rawThinking : responseOutput;
     const completionTokens = envelope.eval_count;
     const evalMilliseconds = nanosecondsToMs(envelope.eval_duration);
     const evalSeconds = evalMilliseconds === undefined ? undefined : evalMilliseconds / 1000;
@@ -91,6 +96,7 @@ export async function runOllama(options: {
     return {
       rawOutput,
       rawThinking,
+      outputChannel: useThinkingFallback ? "thinking_json_fallback" : "response",
       rawResponseEnvelope: envelope,
       actualModel: envelope.model ?? model.model,
       wallTimeMs: Math.round(performance.now() - started),
@@ -103,13 +109,86 @@ export async function runOllama(options: {
         : undefined,
     };
   } catch (error) {
-    if (controller.signal.aborted) {
-      throw new Error(`Ollama request timed out after ${config.settings.timeoutMs}ms.`);
+    if (inactivityTimeout.controller.signal.aborted) {
+      throw new Error(`Ollama stream was inactive for ${config.settings.timeoutMs}ms.`);
     }
     throw error;
   } finally {
-    clearTimeout(timeout);
+    inactivityTimeout.clear();
   }
+}
+
+async function readOllamaStream(
+  response: Response,
+  isVision: boolean,
+  onActivity: () => void,
+  signal: AbortSignal,
+): Promise<OllamaEnvelope> {
+  if (!response.body) throw new Error("Ollama returned an empty response stream.");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let responseOutput = "";
+  let thinkingOutput = "";
+  let finalEnvelope: OllamaEnvelope | undefined;
+  const abortWaiter = waitForAbort(signal);
+
+  const processLine = (line: string) => {
+    if (!line.trim()) return;
+    let chunk: OllamaEnvelope;
+    try {
+      chunk = JSON.parse(line) as OllamaEnvelope;
+    } catch {
+      throw new Error(`Ollama returned a malformed response envelope: ${line.slice(0, 500)}`);
+    }
+
+    responseOutput += isVision ? chunk.message?.content ?? "" : chunk.response ?? "";
+    thinkingOutput += isVision ? chunk.message?.thinking ?? "" : chunk.thinking ?? "";
+    finalEnvelope = chunk;
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), abortWaiter.promise]);
+      if (value && value.byteLength > 0) onActivity();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) processLine(line);
+      if (done) break;
+    }
+  } finally {
+    abortWaiter.cleanup();
+  }
+  processLine(buffer);
+
+  if (!finalEnvelope?.done) {
+    throw new Error("Ollama ended its response before generation completed.");
+  }
+
+  return {
+    ...finalEnvelope,
+    ...(isVision
+      ? { message: { content: responseOutput, thinking: thinkingOutput } }
+      : { response: responseOutput, thinking: thinkingOutput }),
+  };
+}
+
+function waitForAbort(signal: AbortSignal) {
+  let onAbort: (() => void) | undefined;
+  const promise = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
+
+  return {
+    promise,
+    cleanup: () => {
+      if (onAbort) signal.removeEventListener("abort", onAbort);
+    },
+  };
 }
 
 export async function unloadOllamaModel(config: EvaluationConfig, model: string) {
@@ -158,4 +237,36 @@ function ollamaOptions(config: EvaluationConfig) {
 
 function nanosecondsToMs(value?: number) {
   return value === undefined ? undefined : Math.round(value / 1_000_000);
+}
+
+function createInactivityTimeout(timeoutMs: number) {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const clear = () => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+  };
+  const reset = () => {
+    clear();
+    timeoutId = setTimeout(
+      () => controller.abort(new Error(`Ollama stream was inactive for ${timeoutMs}ms.`)),
+      timeoutMs,
+    );
+  };
+
+  reset();
+  return { controller, reset, clear };
+}
+
+function isCompleteJson(value: unknown): value is string {
+  if (typeof value !== "string" || !value.trim()) return false;
+  try {
+    JSON.parse(value.trim());
+    return true;
+  } catch {
+    return false;
+  }
 }

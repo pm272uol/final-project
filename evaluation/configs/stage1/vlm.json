@@ -22,27 +22,31 @@
       "id": "qwen35-2b",
       "displayName": "Qwen 3.5 2B",
       "model": "qwen3.5:2b",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     },
     {
       "id": "qwen35-4b",
       "displayName": "Qwen 3.5 4B",
       "model": "qwen3.5:4b",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     },
     {
       "id": "gemma4-12b",
       "displayName": "Gemma 4 12B (Ollama vision substitute)",
       "model": "gemma4:12b",
       "version": "4eb23ef187e2",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     },
     {
       "id": "qwen35-9b",
       "displayName": "Qwen 3.5 9B",
       "model": "qwen3.5:9b",
       "version": "6488c96fa5fa",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     },
     {
       "id": "llama32-vision-11b",
@@ -58,10 +62,9 @@
     "temperature": 0,
     "seed": 42,
     "maxOutputTokens": 2048,
-    "thinking": false,
     "warmupRuns": 1,
     "measuredRuns": 3,
-    "timeoutMs": 300000,
+    "timeoutMs": 180000,
     "useCache": true,
     "unloadAfterModel": true
   }

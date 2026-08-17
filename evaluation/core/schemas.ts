@@ -54,12 +54,18 @@ export const datasetManifestSchema = z.object({
   scenes: z.array(z.string().trim().min(1)).min(1),
 });
 
+export const thinkingModeSchema = z.union([
+  z.boolean(),
+  z.enum(["low", "medium", "high", "max"]),
+]);
+
 const modelSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9_-]*$/),
   displayName: z.string().trim().min(1),
   model: z.string().trim().min(1),
   version: z.string().trim().min(1).optional(),
   execution: z.enum(["local", "cloud"]).default("local"),
+  thinking: thinkingModeSchema.optional(),
 });
 
 export const evaluationConfigSchema = z.object({
@@ -84,7 +90,6 @@ export const evaluationConfigSchema = z.object({
     temperature: z.number().min(0).max(2).default(0),
     seed: z.number().int().nonnegative().default(42),
     maxOutputTokens: z.number().int().positive().default(4096),
-    thinking: z.boolean().default(false),
     warmupRuns: z.number().int().nonnegative().default(1),
     measuredRuns: z.number().int().positive().default(3),
     timeoutMs: z.number().int().positive().default(300_000),
@@ -163,6 +168,7 @@ export type InvocationRecord = {
   input: unknown;
   rawOutput: string;
   rawThinking?: string;
+  outputChannel?: "response" | "thinking_json_fallback";
   rawResponseEnvelope?: unknown;
   parsedOutput: unknown;
   metrics: AutomaticMetrics;

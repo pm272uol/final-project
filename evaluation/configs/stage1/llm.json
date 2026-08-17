@@ -16,7 +16,8 @@
       "id": "qwen3-06b",
       "displayName": "Qwen3 0.6B",
       "model": "qwen3:0.6b",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     },
     {
       "id": "phi4-mini",
@@ -29,25 +30,29 @@
       "displayName": "Gemma 4 E4B",
       "model": "gemma4:latest",
       "version": "c6eb396dbd59",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     },
     {
       "id": "qwen3-8b",
       "displayName": "Qwen3 8B",
       "model": "qwen3:8b",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     },
     {
       "id": "qwen3-14b",
       "displayName": "Qwen3 14B",
       "model": "qwen3:14b",
-      "execution": "local"
+      "execution": "local",
+      "thinking": true
     },
     {
       "id": "gpt-oss-20b",
       "displayName": "GPT-OSS 20B",
       "model": "gpt-oss:20b",
-      "execution": "local"
+      "execution": "local",
+      "thinking": "medium"
     }
   ],
   "settings": {
@@ -57,10 +62,9 @@
     "temperature": 0,
     "seed": 42,
     "maxOutputTokens": 4096,
-    "thinking": false,
     "warmupRuns": 1,
     "measuredRuns": 3,
-    "timeoutMs": 300000,
+    "timeoutMs": 180000,
     "useCache": true,
     "unloadAfterModel": true
   }
