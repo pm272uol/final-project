@@ -295,20 +295,37 @@ export async function unloadOllamaModel(config: EvaluationConfig, model: string)
 }
 
 export async function listOllamaModels(baseUrl: string, timeoutMs = 30_000) {
+  const apiBaseUrl = baseUrl.replace(/\/$/, "");
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/tags`, {
+    const response = await fetch(`${apiBaseUrl}/api/tags`, {
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) throw new Error(`Ollama returned ${response.status}.`);
     const body = await response.json() as {
       models?: Array<{
         name?: string;
+        model?: string;
         digest?: string;
         size?: number;
         capabilities?: string[];
       }>;
     };
-    return body.models ?? [];
+    return await Promise.all((body.models ?? []).map(async (model) => {
+      const name = model.name ?? model.model;
+      if (!name) return { ...model, capabilities: model.capabilities ?? [] };
+
+      const showResponse = await fetch(`${apiBaseUrl}/api/show`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: name }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!showResponse.ok) {
+        throw new Error(`Ollama returned ${showResponse.status} while inspecting ${name}.`);
+      }
+      const details = await showResponse.json() as { capabilities?: string[] };
+      return { ...model, name, capabilities: details.capabilities ?? [] };
+    }));
   } catch (error) {
     if (error instanceof Error && /TimeoutError|timed out|aborted due to timeout/i.test(`${error.name} ${error.message}`)) {
       throw new Error(`Ollama model inventory timed out after ${timeoutMs}ms.`);

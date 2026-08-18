@@ -97,6 +97,41 @@ describe("evaluation harness", () => {
     }
   });
 
+  it("loads model capabilities from the Ollama show endpoint", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        models: [{
+          name: "gemma4:e4b",
+          digest: "c6eb396dbd59",
+          size: 9_600_000_000,
+        }],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        capabilities: ["completion", "vision", "thinking"],
+      })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      await expect(listOllamaModels("http://127.0.0.1:11434/"))
+        .resolves.toEqual([{
+          name: "gemma4:e4b",
+          digest: "c6eb396dbd59",
+          size: 9_600_000_000,
+          capabilities: ["completion", "vision", "thinking"],
+        }]);
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        "http://127.0.0.1:11434/api/show",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ model: "gemma4:e4b" }),
+        }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("sends each model's configured thinking mode to Ollama", async () => {
     const { config } = await loadConfig("evaluation/configs/stage1/llm.json");
     const qwen = config.models.find((model) => model.id === "qwen3-06b");
