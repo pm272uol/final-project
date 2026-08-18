@@ -8,6 +8,7 @@ import { messageOf, readJsonFile, writeJson } from "../core/files.ts";
 import { evaluateOutput } from "../core/output.ts";
 import { generateReports, loadInvocationRecords } from "../core/report.ts";
 import { runEvaluation } from "../core/run.ts";
+import { parseModelSelectionFlags, selectModels } from "../core/model-selection.ts";
 import { listOllamaModels } from "../runners/ollama.ts";
 import { sceneSchema } from "../core/schemas.ts";
 
@@ -15,7 +16,11 @@ const [, , command, argument, ...flags] = process.argv;
 
 try {
   if (command === "doctor") {
-    await doctor(argument ?? "evaluation/configs/stage1/llm.json");
+    const usesDefaultConfig = !argument || argument.startsWith("--");
+    await doctor(
+      usesDefaultConfig ? "evaluation/configs/stage1/llm.json" : argument,
+      usesDefaultConfig && argument ? [argument, ...flags] : flags,
+    );
   } else if (command === "run") {
     if (!argument) usage("run requires a configuration file.");
     await run(argument, flags.includes("--force"), flagValue(flags, "--resume"));
@@ -48,7 +53,9 @@ try {
 }
 
 async function run(configArgument: string, force: boolean, resumeDirectory?: string) {
-  const { config, configPath } = await loadConfig(configArgument);
+  const loaded = await loadConfig(configArgument);
+  const config = selectModels(loaded.config, parseModelSelectionFlags(flags));
+  const { configPath } = loaded;
   const { scenes } = await loadDataset(config);
   console.log(
     `${resumeDirectory ? "Resuming" : "Starting"} ${config.id}: ` +
@@ -79,8 +86,9 @@ function flagValue(flags: string[], name: string) {
   return value;
 }
 
-async function doctor(configArgument: string) {
-  const { config } = await loadConfig(configArgument);
+async function doctor(configArgument: string, flags: string[]) {
+  const loaded = await loadConfig(configArgument);
+  const config = selectModels(loaded.config, parseModelSelectionFlags(flags));
   const { scenes } = await loadDataset(config);
   const checks: Array<{ label: string; status: "PASS" | "FAIL"; detail: string }> = [];
 
@@ -155,8 +163,9 @@ function usage(error?: string): never {
   if (error) console.error(error);
   console.error(`Usage:
   npm run eval -- doctor [config.json]
-  npm run eval -- run <config.json> [--force]
-  npm run eval -- run <config.json> --resume <run-directory> [--force]
+  npm run eval -- doctor [config.json] [--include-model <id[,id...]>] [--exclude-model <id[,id...]>]
+  npm run eval -- run <config.json> [--force] [--include-model <id[,id...]>] [--exclude-model <id[,id...]>]
+  npm run eval -- run <config.json> --resume <run-directory> [--force] [model selection flags]
   npm run eval -- report <run-directory>`);
   process.exit(error ? 1 : 0);
 }

@@ -5,9 +5,33 @@ import { loadDataset } from "@/evaluation/core/dataset";
 import { hashValue, stableJson } from "@/evaluation/core/files";
 import { evaluateOutput, parseModelJson } from "@/evaluation/core/output";
 import { evaluationConfigSchema, sceneSchema } from "@/evaluation/core/schemas";
+import { parseModelSelectionFlags, selectModels } from "@/evaluation/core/model-selection";
 import { listOllamaModels, runOllama } from "@/evaluation/runners/ollama";
 
 describe("evaluation harness", () => {
+  it("includes and excludes one or more configured models by ID", async () => {
+    const { config } = await loadConfig("evaluation/configs/stage1/llm.json");
+    const flags = parseModelSelectionFlags([
+      "--include-model", "qwen3-06b,gemma4-e4b",
+      "--include-model", "gpt-oss-20b",
+      "--exclude-model", "qwen3-06b",
+    ]);
+
+    expect(selectModels(config, flags).models.map((model) => model.id)).toEqual([
+      "gemma4-e4b",
+      "gpt-oss-20b",
+    ]);
+  });
+
+  it("rejects unknown and empty model selections", async () => {
+    const { config } = await loadConfig("evaluation/configs/stage1/llm.json");
+
+    expect(() => selectModels(config, { include: ["missing"], exclude: [] }))
+      .toThrow("Unknown model ID: missing");
+    expect(() => selectModels(config, { include: [], exclude: config.models.map((model) => model.id) }))
+      .toThrow("excluded every configured model");
+  });
+
   it("loads and validates the six Stage 1 scenes", async () => {
     const { config } = await loadConfig("evaluation/configs/stage1/llm.json");
     const { scenes } = await loadDataset(config);

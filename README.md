@@ -93,6 +93,14 @@ npm run eval -- run evaluation/configs/stage1/llm.json
 
 # Full Stage 1 VLM evaluation
 npm run eval -- run evaluation/configs/stage1/vlm.json
+
+# Evaluate a subset by model ID (flags may be repeated or comma-separated)
+npm run eval -- run evaluation/configs/stage1/llm.json \
+  --include-model gemma4-e4b,gpt-oss-20b
+
+# Evaluate all configured models except selected IDs
+npm run eval -- run evaluation/configs/stage1/llm.json \
+  --exclude-model qwen3-06b --exclude-model phi4-mini
 ```
 
 ### Resume, rerun, and report
