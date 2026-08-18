@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { generatedStoryboardPackageSchema } from "../../lib/storyboardSchema.ts";
+import { visionOutputSchema } from "../core/schemas.ts";
 import type { EvaluationConfig, EvaluationModel } from "../core/schemas.ts";
 
 type OllamaEnvelope = {
@@ -7,6 +9,7 @@ type OllamaEnvelope = {
   thinking?: string;
   message?: { content?: string; thinking?: string };
   done?: boolean;
+  done_reason?: string;
   total_duration?: number;
   load_duration?: number;
   prompt_eval_count?: number;
@@ -28,15 +31,26 @@ export type RunnerResult = {
   tokensPerSecond?: number;
 };
 
+export type RunnerProgress = {
+  elapsedMs: number;
+  responseChars: number;
+  thinkingChars: number;
+  contentChunks: number;
+};
+
 export async function runOllama(options: {
   config: EvaluationConfig;
   model: EvaluationModel;
   prompt: string;
   imagePath?: string;
   format?: unknown;
+  onProgress?: (progress: RunnerProgress) => void;
 }): Promise<RunnerResult> {
-  const { config, model, prompt, imagePath, format } = options;
-  const inactivityTimeout = createInactivityTimeout(config.settings.timeoutMs);
+  const { config, model, prompt, imagePath, format, onProgress } = options;
+  const timeouts = createGenerationTimeouts(
+    config.settings.timeoutMs,
+    config.settings.hardTimeoutMs,
+  );
   const started = performance.now();
 
   try {
@@ -71,9 +85,9 @@ export async function runOllama(options: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
-      signal: inactivityTimeout.controller.signal,
+      signal: timeouts.controller.signal,
     });
-    inactivityTimeout.reset();
+    timeouts.resetInactivity();
     if (!response.ok) {
       const text = await response.text();
       throw new Error(`Ollama returned ${response.status}: ${text.slice(0, 500)}`);
@@ -81,8 +95,16 @@ export async function runOllama(options: {
     const envelope = await readOllamaStream(
       response,
       isVision,
-      inactivityTimeout.reset,
-      inactivityTimeout.controller.signal,
+      timeouts.resetInactivity,
+      timeouts.controller.signal,
+      {
+        category: config.category,
+        stopOnValidSchema: config.settings.promptMode === "constrained",
+        started,
+        progressIntervalMs: config.settings.progressIntervalMs,
+        repetitionGuard: config.settings.repetitionGuard,
+        onProgress,
+      },
     );
     const responseOutput = isVision ? envelope.message?.content : envelope.response;
     const rawThinking = isVision ? envelope.message?.thinking : envelope.thinking;
@@ -109,12 +131,12 @@ export async function runOllama(options: {
         : undefined,
     };
   } catch (error) {
-    if (inactivityTimeout.controller.signal.aborted) {
-      throw new Error(`Ollama stream was inactive for ${config.settings.timeoutMs}ms.`);
+    if (timeouts.controller.signal.aborted) {
+      throw new Error(timeouts.abortMessage());
     }
     throw error;
   } finally {
-    inactivityTimeout.clear();
+    timeouts.clear();
   }
 }
 
@@ -123,6 +145,14 @@ async function readOllamaStream(
   isVision: boolean,
   onActivity: () => void,
   signal: AbortSignal,
+  options: {
+    category: "llm" | "vlm";
+    stopOnValidSchema: boolean;
+    started: number;
+    progressIntervalMs: number;
+    repetitionGuard: boolean;
+    onProgress?: (progress: RunnerProgress) => void;
+  },
 ): Promise<OllamaEnvelope> {
   if (!response.body) throw new Error("Ollama returned an empty response stream.");
 
@@ -132,6 +162,8 @@ async function readOllamaStream(
   let responseOutput = "";
   let thinkingOutput = "";
   let finalEnvelope: OllamaEnvelope | undefined;
+  let contentChunks = 0;
+  let lastProgressAt = options.started;
   const abortWaiter = waitForAbort(signal);
 
   const processLine = (line: string) => {
@@ -145,6 +177,9 @@ async function readOllamaStream(
 
     responseOutput += isVision ? chunk.message?.content ?? "" : chunk.response ?? "";
     thinkingOutput += isVision ? chunk.message?.thinking ?? "" : chunk.thinking ?? "";
+    if ((isVision ? chunk.message?.content || chunk.message?.thinking : chunk.response || chunk.thinking)) {
+      contentChunks += 1;
+    }
     finalEnvelope = chunk;
   };
 
@@ -156,6 +191,37 @@ async function readOllamaStream(
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines) processLine(line);
+      const now = performance.now();
+      if (options.onProgress && now - lastProgressAt >= options.progressIntervalMs) {
+        options.onProgress({
+          elapsedMs: Math.round(now - options.started),
+          responseChars: responseOutput.length,
+          thinkingChars: thinkingOutput.length,
+          contentChunks,
+        });
+        lastProgressAt = now;
+      }
+      if (
+        options.stopOnValidSchema &&
+        responseOutput &&
+        isSchemaComplete(options.category, responseOutput)
+      ) {
+        await reader.cancel("schema-complete");
+        return {
+          ...finalEnvelope,
+          done: true,
+          done_reason: "schema_complete",
+          ...(isVision
+            ? { message: { content: responseOutput, thinking: thinkingOutput } }
+            : { response: responseOutput, thinking: thinkingOutput }),
+        };
+      }
+      if (options.repetitionGuard && hasRepeatedSuffix(responseOutput)) {
+        await reader.cancel("repeated-output");
+        throw new Error(
+          `Ollama response entered a repeated-output loop after ${responseOutput.length} characters.`,
+        );
+      }
       if (done) break;
     }
   } finally {
@@ -173,6 +239,31 @@ async function readOllamaStream(
       ? { message: { content: responseOutput, thinking: thinkingOutput } }
       : { response: responseOutput, thinking: thinkingOutput }),
   };
+}
+
+function isSchemaComplete(category: "llm" | "vlm", rawOutput: string) {
+  const trimmed = rawOutput.trim();
+  if (!trimmed.endsWith("}") && !trimmed.endsWith("]")) return false;
+  try {
+    const parsed = JSON.parse(trimmed);
+    const schema = category === "llm" ? generatedStoryboardPackageSchema : visionOutputSchema;
+    return schema.safeParse(parsed).success;
+  } catch {
+    return false;
+  }
+}
+
+function hasRepeatedSuffix(
+  output: string,
+  minimumChars = 32_768,
+  sampleChars = 512,
+  lookbackChars = 16_384,
+) {
+  if (output.length < minimumChars || output.length < sampleChars * 2) return false;
+  const suffix = output.slice(-sampleChars);
+  const priorEnd = output.length - sampleChars;
+  const priorStart = Math.max(0, priorEnd - lookbackChars);
+  return output.slice(priorStart, priorEnd).includes(suffix);
 }
 
 function waitForAbort(signal: AbortSignal) {
@@ -230,7 +321,9 @@ function ollamaOptions(config: EvaluationConfig) {
   return {
     temperature: config.settings.temperature,
     num_ctx: config.settings.contextLength,
-    num_predict: config.settings.maxOutputTokens,
+    ...(config.settings.maxOutputTokens === undefined
+      ? {}
+      : { num_predict: config.settings.maxOutputTokens }),
     seed: config.settings.seed,
   };
 }
@@ -239,26 +332,32 @@ function nanosecondsToMs(value?: number) {
   return value === undefined ? undefined : Math.round(value / 1_000_000);
 }
 
-function createInactivityTimeout(timeoutMs: number) {
+function createGenerationTimeouts(inactivityTimeoutMs: number, hardTimeoutMs: number) {
   const controller = new AbortController();
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let inactivityId: ReturnType<typeof setTimeout> | undefined;
+  let abortReason = `Ollama generation timed out after the hard limit of ${hardTimeoutMs}ms.`;
+  const hardTimeoutId = setTimeout(() => controller.abort(), hardTimeoutMs);
 
   const clear = () => {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-      timeoutId = undefined;
+    clearTimeout(hardTimeoutId);
+    if (inactivityId !== undefined) {
+      clearTimeout(inactivityId);
+      inactivityId = undefined;
     }
   };
-  const reset = () => {
-    clear();
-    timeoutId = setTimeout(
-      () => controller.abort(new Error(`Ollama stream was inactive for ${timeoutMs}ms.`)),
-      timeoutMs,
+  const resetInactivity = () => {
+    if (inactivityId !== undefined) clearTimeout(inactivityId);
+    inactivityId = setTimeout(
+      () => {
+        abortReason = `Ollama stream was inactive for ${inactivityTimeoutMs}ms.`;
+        controller.abort();
+      },
+      inactivityTimeoutMs,
     );
   };
 
-  reset();
-  return { controller, reset, clear };
+  resetInactivity();
+  return { controller, resetInactivity, clear, abortMessage: () => abortReason };
 }
 
 function isCompleteJson(value: unknown): value is string {

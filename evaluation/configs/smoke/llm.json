@@ -28,10 +28,12 @@
     "contextLength": 8192,
     "temperature": 0,
     "seed": 42,
-    "maxOutputTokens": 4096,
     "warmupRuns": 0,
     "measuredRuns": 1,
     "timeoutMs": 180000,
+    "hardTimeoutMs": 3600000,
+    "progressIntervalMs": 30000,
+    "repetitionGuard": true,
     "useCache": true,
     "unloadAfterModel": true
   }

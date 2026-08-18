@@ -18,7 +18,7 @@ try {
     await doctor(argument ?? "evaluation/configs/stage1/llm.json");
   } else if (command === "run") {
     if (!argument) usage("run requires a configuration file.");
-    await run(argument, flags.includes("--force"));
+    await run(argument, flags.includes("--force"), flagValue(flags, "--resume"));
   } else if (command === "report") {
     if (!argument) usage("report requires a run directory.");
     const runDirectory = resolve(argument);
@@ -47,19 +47,36 @@ try {
   process.exitCode = 1;
 }
 
-async function run(configArgument: string, force: boolean) {
+async function run(configArgument: string, force: boolean, resumeDirectory?: string) {
   const { config, configPath } = await loadConfig(configArgument);
   const { scenes } = await loadDataset(config);
-  console.log(`Starting ${config.id}: ${config.models.length} models × ${scenes.length} scenes × ${config.settings.measuredRuns} measured runs.`);
+  console.log(
+    `${resumeDirectory ? "Resuming" : "Starting"} ${config.id}: ` +
+    `${config.models.length} models × ${scenes.length} scenes × ` +
+    `${config.settings.measuredRuns} measured runs.`,
+  );
   const result = await runEvaluation({
     config,
     configPath,
     scenes,
     force,
+    resumeDirectory,
     onStatus: (message) => console.log(message),
   });
-  console.log(`Completed ${result.records.length} invocations.`);
+  const completedNow = result.records.length - result.completedBeforeResume;
+  console.log(
+    `Completed ${completedNow} invocation${completedNow === 1 ? "" : "s"} in this process ` +
+    `(${result.records.length} total).`,
+  );
   console.log(`Results: ${result.runDirectory}`);
+}
+
+function flagValue(flags: string[], name: string) {
+  const index = flags.indexOf(name);
+  if (index < 0) return undefined;
+  const value = flags[index + 1];
+  if (!value || value.startsWith("--")) usage(`${name} requires a run directory.`);
+  return value;
 }
 
 async function doctor(configArgument: string) {
@@ -139,6 +156,7 @@ function usage(error?: string): never {
   console.error(`Usage:
   npm run eval -- doctor [config.json]
   npm run eval -- run <config.json> [--force]
+  npm run eval -- run <config.json> --resume <run-directory> [--force]
   npm run eval -- report <run-directory>`);
   process.exit(error ? 1 : 0);
 }

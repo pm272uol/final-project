@@ -116,11 +116,16 @@ describe("evaluation harness", () => {
       const qwenResult = await runOllama({ config, model: qwen!, prompt: "test" });
       await runOllama({ config, model: gptOss!, prompt: "test" });
       const requestBodies = fetchMock.mock.calls.map(([, request]) =>
-        JSON.parse(String(request?.body)) as { think?: unknown; stream?: unknown }
+        JSON.parse(String(request?.body)) as {
+          think?: unknown;
+          stream?: unknown;
+          options?: { num_predict?: number };
+        }
       );
       expect(requestBodies[0]?.think).toBe(true);
       expect(requestBodies[1]?.think).toBe("medium");
       expect(requestBodies.every((body) => body.stream === true)).toBe(true);
+      expect(requestBodies.every((body) => body.options?.num_predict === undefined)).toBe(true);
       expect(qwenResult.rawThinking).toBe("reasoning");
       expect(qwenResult.outputChannel).toBe("response");
 
@@ -190,6 +195,107 @@ describe("evaluation harness", () => {
         model: config.models[0]!,
         prompt: "test",
       })).rejects.toThrow("Ollama stream was inactive for 10ms.");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("stops once the response channel contains schema-valid JSON", async () => {
+    const loaded = await loadConfig("evaluation/configs/smoke/llm.json");
+    const { scenes } = await loadDataset(loaded.config);
+    const storyboard = createMockStoryboard(scenes[0]!.record.storyboardInput);
+    const encoder = new TextEncoder();
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(`${JSON.stringify({
+          model: "test",
+          response: JSON.stringify(storyboard),
+          thinking: "finished reasoning",
+          done: false,
+        })}\n`));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(stream)));
+
+    try {
+      const result = await runOllama({
+        config: loaded.config,
+        model: loaded.config.models[0]!,
+        prompt: "test",
+      });
+      expect(JSON.parse(result.rawOutput)).toEqual(storyboard);
+      expect(result.rawThinking).toBe("finished reasoning");
+      expect(result.rawResponseEnvelope.done_reason).toBe("schema_complete");
+      expect(cancelled).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("enforces a hard wall-clock timeout despite continued stream activity", async () => {
+    const loaded = await loadConfig("evaluation/configs/smoke/llm.json");
+    const config = {
+      ...loaded.config,
+      settings: {
+        ...loaded.config.settings,
+        timeoutMs: 1_000,
+        hardTimeoutMs: 30,
+        progressIntervalMs: 5,
+      },
+    };
+    const encoder = new TextEncoder();
+    let interval: ReturnType<typeof setInterval>;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        interval = setInterval(() => controller.enqueue(encoder.encode(
+          `${JSON.stringify({ model: "test", response: "x", done: false })}\n`,
+        )), 5);
+      },
+      cancel() {
+        clearInterval(interval);
+      },
+    });
+    const onProgress = vi.fn();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(stream)));
+
+    try {
+      await expect(runOllama({
+        config,
+        model: config.models[0]!,
+        prompt: "test",
+        onProgress,
+      })).rejects.toThrow("timed out after the hard limit of 30ms");
+      expect(onProgress).toHaveBeenCalled();
+    } finally {
+      clearInterval(interval!);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("rejects a large response whose suffix repeats verbatim", async () => {
+    const loaded = await loadConfig("evaluation/configs/smoke/llm.json");
+    const repeated = `unfinished:${"repeat-this-output;".repeat(2_000)}`;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(`${JSON.stringify({
+          model: "test",
+          response: repeated,
+          done: false,
+        })}\n`));
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(stream)));
+
+    try {
+      await expect(runOllama({
+        config: loaded.config,
+        model: loaded.config.models[0]!,
+        prompt: "test",
+      })).rejects.toThrow("repeated-output loop");
     } finally {
       vi.unstubAllGlobals();
     }

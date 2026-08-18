@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { EvaluationConfig, InvocationRecord } from "./schemas.ts";
 import { hashValue, slug, writeJson } from "./files.ts";
@@ -31,10 +31,61 @@ export async function writeCache(cacheRoot: string, key: string, value: CachedIn
 }
 
 export async function saveInvocation(runDirectory: string, record: InvocationRecord) {
-  const filename = `${record.testId}-${slug(record.model.id)}-r${record.repetition}.json`;
+  const filename = invocationFilename(record.testId, record.model.id, record.repetition);
   const path = join(runDirectory, "raw", filename);
-  await writeFile(path, `${JSON.stringify(record, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+  const temporaryPath = join(
+    runDirectory,
+    "raw",
+    `.${filename}-${process.pid}-${Date.now()}.tmp`,
+  );
+  await writeFile(temporaryPath, `${JSON.stringify(record, null, 2)}\n`, {
+    encoding: "utf8",
+    flag: "wx",
+  });
+  try {
+    await link(temporaryPath, path);
+  } finally {
+    await unlink(temporaryPath).catch(() => undefined);
+  }
   return path;
+}
+
+export function invocationFilename(testId: string, modelId: string, repetition: number) {
+  return `${testId}-${slug(modelId)}-r${repetition}.json`;
+}
+
+export type RunState = {
+  version: 1;
+  runId: string;
+  status: "running" | "completed";
+  startedAt: string;
+  updatedAt: string;
+  totalInvocations: number;
+  plannedInvocationIds: string[];
+  completedInvocationIds: string[];
+  pendingInvocationIds: string[];
+  activeInvocationId?: string;
+  remainingInvocations: number;
+  resumeCount: number;
+  lastResumedAt?: string;
+};
+
+export async function readRunState(runDirectory: string): Promise<RunState | undefined> {
+  try {
+    return JSON.parse(await readFile(join(runDirectory, "state.json"), "utf8")) as RunState;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function writeRunState(runDirectory: string, state: RunState) {
+  const path = join(runDirectory, "state.json");
+  const temporaryPath = join(
+    runDirectory,
+    `.state-${process.pid}-${Date.now()}.tmp`,
+  );
+  await writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  await rename(temporaryPath, path);
 }
 
 export async function writeRunManifest(

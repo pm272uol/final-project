@@ -56,15 +56,17 @@
     }
   ],
   "settings": {
-    "promptMode": "prompt_only",
+    "promptMode": "constrained",
     "runMode": "quality",
     "contextLength": 8192,
     "temperature": 0,
     "seed": 42,
-    "maxOutputTokens": 2048,
     "warmupRuns": 1,
     "measuredRuns": 3,
     "timeoutMs": 180000,
+    "hardTimeoutMs": 3600000,
+    "progressIntervalMs": 30000,
+    "repetitionGuard": true,
     "useCache": true,
     "unloadAfterModel": true
   }

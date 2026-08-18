@@ -89,10 +89,13 @@ export const evaluationConfigSchema = z.object({
     contextLength: z.number().int().positive().default(8192),
     temperature: z.number().min(0).max(2).default(0),
     seed: z.number().int().nonnegative().default(42),
-    maxOutputTokens: z.number().int().positive().default(4096),
+    maxOutputTokens: z.number().int().positive().optional(),
     warmupRuns: z.number().int().nonnegative().default(1),
     measuredRuns: z.number().int().positive().default(3),
     timeoutMs: z.number().int().positive().default(300_000),
+    hardTimeoutMs: z.number().int().positive().default(3_600_000),
+    progressIntervalMs: z.number().int().positive().default(30_000),
+    repetitionGuard: z.boolean().default(true),
     useCache: z.boolean().default(true),
     unloadAfterModel: z.boolean().default(true),
   }),
@@ -181,7 +184,7 @@ export type InvocationRecord = {
     tokensPerSecond?: number;
   };
   failure?: {
-    code: "F01" | "F02" | "F03" | "F04" | "F05" | "F08" | "F09";
+    code: "F01" | "F02" | "F03" | "F04" | "F05" | "F06" | "F08" | "F09";
     message: string;
   };
 };
