@@ -15,7 +15,10 @@
     "test:all": "npm run test && npm run test:e2e",
     "eval": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON evaluation/cli/index.ts",
     "eval:doctor": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON evaluation/cli/index.ts doctor",
-    "eval:smoke": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON evaluation/cli/index.ts run evaluation/configs/smoke/llm.json"
+    "eval:smoke": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON evaluation/cli/index.ts run evaluation/configs/smoke/llm.json",
+    "evaluate": "node --env-file-if-exists=.env --experimental-transform-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON evaluation/compare.ts",
+    "test:llm:ollama": "LLM_INTEGRATION=ollama node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run tests/integration/llmBackends.test.ts",
+    "test:llm:vercel": "LLM_INTEGRATION=vercel node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run tests/integration/llmBackends.test.ts"
   },
   "dependencies": {
     "next": "15.5.19",

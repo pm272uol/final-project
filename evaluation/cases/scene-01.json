@@ -1,0 +1,21 @@
+{
+  "id": "scene-01",
+  "input": {
+    "genre": "Thriller",
+    "visualStyle": "Noir",
+    "duration": "60 seconds",
+    "panelCount": 4,
+    "tone": "Mysterious",
+    "targetFormat": "Storyboard + shot list",
+    "sceneIdea": "A night-shift projectionist finds a frame of tomorrow hidden in an old film reel."
+  },
+  "expectedProperties": [
+    "title",
+    "logline",
+    "characters",
+    "locations",
+    "storyboard",
+    "continuityNotes",
+    "productionNotes"
+  ]
+}

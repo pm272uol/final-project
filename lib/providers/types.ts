@@ -25,7 +25,7 @@ export type StoryboardProviderResult = {
 };
 
 export interface StoryboardProvider {
-  readonly name: "ollama" | "mock";
+  readonly name: "ollama" | "vercel" | "mock";
   readonly model: string;
   generate(
     input: StoryboardInput,
@@ -33,21 +33,7 @@ export interface StoryboardProvider {
   ): Promise<StoryboardProviderResult>;
 }
 
-export type ProviderErrorCode =
-  | "PROVIDER_ABORTED"
-  | "PROVIDER_TIMEOUT"
-  | "PROVIDER_UNAVAILABLE"
-  | "MODEL_NOT_FOUND"
-  | "INVALID_MODEL_RESPONSE"
-  | "PROVIDER_REQUEST_FAILED";
-
-export class StoryboardProviderError extends Error {
-  constructor(
-    public readonly code: ProviderErrorCode,
-    message: string,
-    public readonly cause?: unknown,
-  ) {
-    super(message);
-    this.name = "StoryboardProviderError";
-  }
-}
+export {
+  LLMError as StoryboardProviderError,
+  type LLMErrorCode as ProviderErrorCode,
+} from "../llm/errors.ts";

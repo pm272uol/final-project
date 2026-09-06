@@ -1,0 +1,21 @@
+{
+  "id": "scene-03",
+  "input": {
+    "genre": "Thriller",
+    "visualStyle": "Noir",
+    "duration": "60 seconds",
+    "panelCount": 4,
+    "tone": "Mysterious",
+    "targetFormat": "Storyboard + shot list",
+    "sceneIdea": "A lighthouse keeper sees a second light answering from a ship that vanished years ago."
+  },
+  "expectedProperties": [
+    "title",
+    "logline",
+    "characters",
+    "locations",
+    "storyboard",
+    "continuityNotes",
+    "productionNotes"
+  ]
+}

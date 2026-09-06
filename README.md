@@ -16,9 +16,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Prototype boundaries
 
-This version uses local Ollama with `gemma4:latest` by default for storyboard
-generation. A deterministic mock provider remains available for development and
-fallback.
+This version supports local Ollama with `gemma4:e4b` and Vercel AI Gateway with
+`google/gemma-4-26b-a4b-it`. See [LLM Backends](#llm-backends) for configuration.
+A deterministic mock provider remains available for development.
 
 Panel image generation is mock-first and uses deterministic local SVG renders by
 default. A server-side Replicate adapter for `stability-ai/sdxl` is included,
@@ -137,3 +137,86 @@ checks use Playwright with Chromium.
 - [Storyboard evaluation and scoring](docs/evaluation.md)
 - [Model evaluation tool, local/cloud policy, and download plan](docs/model-evaluation-tool.md)
 - [Image-generation architecture and limitations](docs/image-generation.md)
+
+## LLM Backends
+
+Storyboard generation and reference-image analysis share an LLM provider. Prompts,
+Zod schemas, sequence validation, and downstream image generation remain shared.
+Set these values in `.env`, then restart the application:
+
+```dotenv
+# Local (default)
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gemma4:e4b
+LLM_TIMEOUT_MS=120000
+```
+
+Run `ollama pull gemma4:e4b`, start `ollama serve`, then `npm run dev`.
+For cloud mode:
+
+```dotenv
+LLM_PROVIDER=vercel
+AI_GATEWAY_MODEL=google/gemma-4-26b-a4b-it
+AI_GATEWAY_API_KEY=your-private-key
+LLM_TIMEOUT_MS=120000
+```
+
+Run `npm run dev`. Keep keys in the ignored `.env` file or deployment secrets.
+Configuration is validated at server startup. `LLM_PROVIDER` overrides the legacy
+`STORYBOARD_PROVIDER` setting and disables mock fallback. There is no automatic
+local/cloud fallback. Legacy explicit `STORYBOARD_PROVIDER=mock` remains available
+when `LLM_PROVIDER` is unset. `LLM_TIMEOUT_MS` overrides `OLLAMA_TIMEOUT_MS`.
+Local streaming retains its inactivity timeout, resetting on arriving chunks;
+cloud calls use a total request timeout and currently return a completed response.
+Both support caller cancellation. Image analysis requires vision support from the
+selected model; unsupported requests surface as failures.
+
+The cloud adapter follows Vercel's [OpenAI-compatible REST API](https://vercel.com/docs/ai-gateway/openai-compat/rest-api)
+and [structured outputs API](https://vercel.com/docs/ai-gateway/sdks-and-apis/openai-chat-completions/structured-outputs).
+Model IDs and the gateway base URL are configurable; model availability depends on
+your local installation or gateway account.
+
+Each invocation emits a `llm_run` JSON record to server logs with timestamp,
+operation, provider, model, wall-clock duration, available token counts, success,
+and sanitized error code. Logs exclude prompts, generated text, and credentials.
+Structured validation failures count as failed invocations. Cloud cost estimates
+require both `AI_GATEWAY_INPUT_PER_MILLION` and `AI_GATEWAY_OUTPUT_PER_MILLION`
+(current USD prices) and both token counts. Otherwise cost remains unknown.
+No prices are guessed. Local streams capture time to first token and, when Ollama
+returns its token evaluation duration, generation tokens per second. Time to first
+token is not reported for buffered responses.
+
+Compare the two deployment/model configurations using Node.js 24+:
+
+```bash
+npm run evaluate -- --provider ollama
+npm run evaluate -- --provider vercel
+```
+
+The runner loads `.env`, runs the same fixed storyboard inputs in
+`evaluation/cases/`, and exports timestamped JSON to
+`evaluation/results/comparison/`. Set `OLLAMA_MODEL=gemma4:e4b` when using an older
+`.env` that still selects another local model. The runner uses the application's
+prompt and validation, records failures without fallback, saves after each case,
+and exits nonzero if any case fails. Results include input snapshots, outputs,
+latency, token usage, and configured cost estimates. Outputs are intentionally
+included for manual assessment; result files are ignored by Git.
+
+Report structured-output success rate, latency, reliability, and cost alongside
+manual scores for instruction following, completeness, shot plans, and image
+prompts. Record local hardware/resource measurements separately. **Deployment
+environment and model scale both differ**, so these tests do not isolate
+cloud-versus-local performance. The existing Ollama stage-one benchmark (`npm run
+eval`) remains a separate local-model benchmarking tool.
+
+Optional live-service checks (excluded from ordinary CI):
+
+```bash
+npm run test:llm:ollama
+npm run test:llm:vercel
+```
+
+`npm test` runs mocked tests for both providers, including the existing storyboard
+schema, normalization, invalid output, HTTP errors, network failure, cancellation,
+timeouts, and metrics.

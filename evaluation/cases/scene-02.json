@@ -1,0 +1,21 @@
+{
+  "id": "scene-02",
+  "input": {
+    "genre": "Thriller",
+    "visualStyle": "Noir",
+    "duration": "60 seconds",
+    "panelCount": 4,
+    "tone": "Mysterious",
+    "targetFormat": "Storyboard + shot list",
+    "sceneIdea": "A courier notices that every clock in an empty train station stops when she opens her parcel."
+  },
+  "expectedProperties": [
+    "title",
+    "logline",
+    "characters",
+    "locations",
+    "storyboard",
+    "continuityNotes",
+    "productionNotes"
+  ]
+}

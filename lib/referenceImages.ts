@@ -1,12 +1,6 @@
-import { z } from "zod";
+import { createLLMProvider } from "./llm/create-provider";
 import type { AppConfig } from "@/lib/config";
 import { REFERENCE_PURPOSES } from "@/lib/referenceImageOptions";
-
-const ollamaVisionResponseSchema = z.object({
-  message: z.object({
-    content: z.string().trim().min(1),
-  }),
-});
 
 export type ReferenceImageInput = {
   bytes: Uint8Array;
@@ -26,67 +20,31 @@ export async function analyzeReferenceImages(
     return createMockVisualSummary(images, instructions);
   }
 
-  const timeoutController = new AbortController();
-  const timeoutId = setTimeout(
-    () => timeoutController.abort(new Error("Vision analysis timed out.")),
-    config.ollamaTimeoutMs,
+  const llm = createLLMProvider(
+    config.llm ?? {
+      provider: config.provider,
+      model: config.ollamaModel,
+      baseUrl: config.ollamaBaseUrl,
+      timeoutMs: config.ollamaTimeoutMs,
+    },
+    options.fetchImplementation,
   );
-  const signal = options.signal
-    ? AbortSignal.any([options.signal, timeoutController.signal])
-    : timeoutController.signal;
-
-  try {
-    const response = await (options.fetchImplementation ?? fetch)(
-      `${config.ollamaBaseUrl.replace(/\/$/, "")}/api/chat`,
+  const result = await llm.generate({
+    operation: "image_analysis",
+    signal: options.signal,
+    temperature: 0.15,
+    contextWindow: 4096,
+    messages: [
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: config.ollamaModel,
-          messages: [
-            {
-              role: "user",
-              content: buildVisualSummaryPrompt(images, instructions),
-              images: images.map((image) =>
-                Buffer.from(image.bytes).toString("base64"),
-              ),
-            },
-          ],
-          stream: false,
-          options: {
-            temperature: 0.15,
-            num_ctx: 4096,
-          },
-        }),
-        signal,
+        role: "user",
+        content: buildVisualSummaryPrompt(images, instructions),
+        images: images.map((image) =>
+          Buffer.from(image.bytes).toString("base64"),
+        ),
       },
-    );
-
-    if (!response.ok) {
-      const detail = await readOllamaError(response);
-      throw new Error(
-        `Local visual analysis failed with status ${response.status}: ${detail}`,
-      );
-    }
-
-    const result = ollamaVisionResponseSchema.safeParse(await response.json());
-    if (!result.success) {
-      throw new Error("Ollama returned an invalid visual analysis response.");
-    }
-
-    return result.data.message.content.slice(0, 2_000);
-  } catch (error) {
-    if (signal.aborted) {
-      throw new Error(
-        timeoutController.signal.aborted
-          ? `Visual analysis did not finish within ${config.ollamaTimeoutMs}ms.`
-          : "Visual analysis was cancelled.",
-      );
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+    ],
+  });
+  return result.text.slice(0, 2_000);
 }
 
 function buildVisualSummaryPrompt(
@@ -120,7 +78,9 @@ function createMockVisualSummary(
   images: ReferenceImageInput[],
   instructions: string,
 ) {
-  const purposes = [...new Set(images.map((image) => image.purpose.toLowerCase()))];
+  const purposes = [
+    ...new Set(images.map((image) => image.purpose.toLowerCase())),
+  ];
   const guidance = instructions.trim()
     ? ` Follow this emphasis: ${instructions.trim()}`
     : "";
@@ -131,16 +91,4 @@ function createMockVisualSummary(
     0,
     2_000,
   );
-}
-
-async function readOllamaError(response: Response) {
-  try {
-    const body = (await response.json()) as {
-      error?: string | { message?: string };
-    };
-    if (typeof body.error === "string") return body.error;
-    return body.error?.message ?? response.statusText;
-  } catch {
-    return response.statusText || "Unknown Ollama error";
-  }
 }

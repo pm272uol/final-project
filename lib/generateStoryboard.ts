@@ -117,6 +117,8 @@ function providerErrorResponse(error: unknown) {
     MODEL_NOT_FOUND: 503,
     INVALID_MODEL_RESPONSE: 502,
     PROVIDER_REQUEST_FAILED: 502,
+    PROVIDER_AUTHENTICATION: 502,
+    PROVIDER_RATE_LIMIT: 429,
   } as const;
 
   return NextResponse.json(

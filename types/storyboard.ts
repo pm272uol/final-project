@@ -170,11 +170,12 @@ export type EvaluationResult = {
   checks: EvaluationCheck[];
 };
 
-export type GenerationMode = "ollama" | "mock";
+export type GenerationMode = "ollama" | "vercel" | "mock";
 
 export type GenerationMetadata = {
+  estimatedCostUsd?: number;
   mode: GenerationMode;
-  provider: "ollama" | "mock";
+  provider: "ollama" | "vercel" | "mock";
   model: string;
   durationMs: number;
   fallbackUsed: boolean;
