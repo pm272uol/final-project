@@ -1,3 +1,4 @@
+import { createVisualBible } from "@/lib/visualBible";
 import { NextResponse } from "next/server";
 import { getAppConfig, type AppConfig } from "@/lib/config";
 import { MockStoryboardProvider } from "@/lib/providers/mockProvider";
@@ -92,7 +93,7 @@ export async function createGenerateStoryboardResponse(
 
   return NextResponse.json({
     mode: providerResult.metadata.mode,
-    storyboard: outputResult.data,
+    storyboard: { ...outputResult.data, visualStyle: inputResult.data.visualStyle, visualBible: createVisualBible(outputResult.data, inputResult.data) },
     metadata: {
       ...providerResult.metadata,
       fallbackUsed,

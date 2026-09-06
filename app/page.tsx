@@ -1,5 +1,7 @@
 "use client";
 
+import { VisualBibleReview } from "@/components/VisualBibleReview";
+import { reviseVisualBible } from "@/lib/visualBible";
 import { useMemo, useRef, useState } from "react";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { GenerationStatus } from "@/components/GenerationStatus";
@@ -29,6 +31,7 @@ export default function Home() {
   const [activePanelCount, setActivePanelCount] = useState(
     DEFAULT_INPUT.panelCount,
   );
+  const [batchGenerating, setBatchGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<string[]>([]);
@@ -139,7 +142,7 @@ export default function Home() {
   }
 
   async function generatePanelImage(panelNumber: number) {
-    if (!storyboard) return;
+    if (!storyboard?.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version) return;
     const panel = storyboard.storyboard.find(
       (item) => item.panelNumber === panelNumber,
     );
@@ -175,6 +178,8 @@ export default function Home() {
       }
 
       updatePanelImage(panelNumber, {
+        imageBibleVersion: result.imageBibleVersion,
+        imageNeedsReview: false,
         imageStatus: "complete",
         imageUrl: result.imageUrl,
         imageError: undefined,
@@ -208,7 +213,7 @@ export default function Home() {
   }
 
   async function generateAllPanelImages() {
-    if (!storyboard) return;
+    if (!storyboard?.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version) return;
     const pendingPanels = storyboard.storyboard.filter(
       (panel) => panel.imageStatus !== "generating",
     );
@@ -216,12 +221,17 @@ export default function Home() {
       `Generating images for ${pendingPanels.length} storyboard panels.`,
     );
 
-    for (let index = 0; index < pendingPanels.length; index += 2) {
-      await Promise.all(
-        pendingPanels
-          .slice(index, index + 2)
-          .map((panel) => generatePanelImage(panel.panelNumber)),
-      );
+    setBatchGenerating(true);
+    try {
+      for (let index = 0; index < pendingPanels.length; index += 2) {
+        await Promise.all(
+          pendingPanels
+            .slice(index, index + 2)
+            .map((panel) => generatePanelImage(panel.panelNumber)),
+        );
+      }
+    } finally {
+      setBatchGenerating(false);
     }
   }
 
@@ -301,6 +311,7 @@ export default function Home() {
             </p>
             <h2 className="display mt-1 text-4xl">Set the frame</h2>
           </div>
+          <fieldset disabled={batchGenerating || storyboard?.storyboard.some(p => p.imageStatus === "generating")} >
           <SceneInputForm
             input={input}
             loading={loading}
@@ -312,6 +323,7 @@ export default function Home() {
             onReferencesChange={setReferences}
             onVisualSummaryChange={setVisualSummary}
           />
+          </fieldset>
           {error ? (
             <div
               role="alert"
@@ -347,7 +359,15 @@ export default function Home() {
             />
           ) : storyboard && evaluation ? (
             <div className="space-y-8">
+              {storyboard.visualBible && <VisualBibleReview
+                key={`${generationMetadata?.durationMs}-${storyboard.visualBible.version}-${storyboard.visualBible.approvedVersion}`}
+                bible={storyboard.visualBible}
+                busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}
+                onSave={draft => { try { setStoryboard(reviseVisualBible(storyboard, draft)); } catch (error) { setError(error instanceof Error ? error.message : "Invalid visual bible"); } }}
+                onApprove={() => setStoryboard({ ...storyboard, visualBible: { ...storyboard.visualBible!, approvedVersion: storyboard.visualBible!.version } })}
+              />}
               <StoryboardOutput
+                imagesDisabled={batchGenerating || !storyboard.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version}
                 data={storyboard}
                 metadata={generationMetadata ?? undefined}
                 onGeneratePanelImage={generatePanelImage}
@@ -374,6 +394,7 @@ export default function Home() {
 
 function createImageContext(storyboard: StoryboardPackage) {
   return {
+    visualBible: storyboard.visualBible,
     visualStyle: storyboard.visualStyle,
     characterContinuity: storyboard.characters
       .map(

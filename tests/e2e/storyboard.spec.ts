@@ -44,6 +44,7 @@ test("generates a complete scene-aware storyboard package", async ({ page }) => 
     page.getByTestId("storyboard-output").getByRole("status"),
   ).toContainText("Image prompt for panel 1 copied.");
 
+  await page.getByRole("button", { name: "Approve visual direction" }).click();
   await page
     .getByRole("button", { name: "Generate image for panel 1" })
     .click();
@@ -93,6 +94,7 @@ test("isolates a failed panel image and allows retry", async ({ page }) => {
   await page.getByTestId("generate-button").click();
   await expect(page.getByTestId("storyboard-panel")).toHaveCount(6);
 
+  await page.getByRole("button", { name: "Approve visual direction" }).click();
   await page
     .getByRole("button", { name: "Generate image for panel 1" })
     .click();
@@ -201,3 +203,25 @@ for (const viewport of [
     await expect(page.getByTestId("generate-button")).toBeVisible();
   });
 }
+
+test("requires bible approval and flags images after editing", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("generate-button").click();
+  const generate = page.getByRole("button", { name: "Generate image for panel 1", exact: true });
+  await expect(generate).toBeDisabled();
+  await page.getByLabel("palette", { exact: true }).fill("Muted blues and amber highlights");
+  await page.getByRole("button", { name: "Save visual bible" }).click();
+  await expect(page.getByText("Version 2 · Awaiting approval")).toBeVisible();
+  await page.getByRole("button", { name: "Approve visual direction" }).click();
+  await generate.click();
+  await expect(page.getByTestId("panel-image-1").locator("img")).toBeVisible();
+  const original = await page.getByTestId("panel-image-1").locator("img").getAttribute("src");
+  await page.getByLabel("palette", { exact: true }).fill("Warm earth tones");
+  await page.getByRole("button", { name: "Save visual bible" }).click();
+  await expect(page.getByTestId("panel-image-1")).toContainText("Needs review · rendered with visual bible v2");
+  await expect(page.getByTestId("panel-image-1").locator("img")).toHaveAttribute("src", original!);
+  await expect(page.getByTestId("generate-all-images")).toBeDisabled();
+  await page.getByRole("button", { name: "Approve visual direction" }).click();
+  await page.getByRole("button", { name: "Regenerate image for panel 1" }).click();
+  await expect(page.getByTestId("panel-image-1")).not.toContainText("Needs review");
+});

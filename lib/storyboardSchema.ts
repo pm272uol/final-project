@@ -1,3 +1,4 @@
+import { visualBibleSchema } from "./visualBible.ts";
 import { z } from "zod";
 import {
   CHARACTER_ROLES,
@@ -67,6 +68,8 @@ export const generatedStoryboardPanelSchema = z.object({
 }).strict();
 
 export const storyboardPanelSchema = generatedStoryboardPanelSchema.extend({
+  imageBibleVersion: z.number().int().positive().optional(),
+  imageNeedsReview: z.boolean().optional(),
   imageStatus: z
     .enum(["not_started", "generating", "complete", "failed"])
     .optional(),
@@ -84,6 +87,7 @@ export const storyboardPanelSchema = generatedStoryboardPanelSchema.extend({
 }).strict();
 
 const storyboardPackageFields = {
+  visualBible: visualBibleSchema.optional(),
   title: z.string().trim().min(1, "Title is required."),
   logline: z.string().trim().min(1, "Logline is required."),
   genre: z.string().trim().min(1, "Genre is required."),

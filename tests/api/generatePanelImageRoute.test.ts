@@ -1,3 +1,4 @@
+import { createVisualBible } from "@/lib/visualBible";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/generate-panel-image/route";
 import { ImageProviderError } from "@/lib/image-generation/types";
@@ -28,6 +29,15 @@ describe("POST /api/generate-panel-image", () => {
     expect(body.negativePrompt).toContain("watermark");
     expect(body.imageWidth).toBe(1024);
     expect(body.imageHeight).toBe(576);
+  });
+
+  it("rejects an unapproved or missing bible before invoking the provider", async () => {
+    const service = vi.spyOn(providerFactory, "createImageGenerationService");
+    const request = validRequest();
+    request.imageContext.visualBible.approvedVersion = null;
+    expect((await POST(jsonRequest(request))).status).toBe(400);
+    expect((await POST(jsonRequest({ ...request, imageContext: { ...request.imageContext, visualBible: undefined } }))).status).toBe(400);
+    expect(service).not.toHaveBeenCalled();
   });
 
   it("rejects invalid panel input", async () => {
@@ -97,6 +107,7 @@ function validRequest() {
   return {
     panel: storyboard.storyboard[0],
     imageContext: {
+      visualBible: { ...createVisualBible(storyboard, validInput), approvedVersion: 1 as number | null },
       visualStyle: storyboard.visualStyle,
       characterContinuity: storyboard.characters
         .map((character) => character.visualDescription)

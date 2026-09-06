@@ -1,3 +1,4 @@
+import { visualBiblePrompt } from "@/lib/visualBible";
 import type {
   StoryboardImageContext,
   StoryboardPanel,
@@ -14,18 +15,18 @@ export function buildSdxlPrompt(
 ): BuiltImagePrompt {
   const continuity = context.continuityNotes?.filter(Boolean).join(" ");
   const prompt = [
-    context.visualStyle,
+    context.visualBible ? visualBiblePrompt(context.visualBible) : context.visualStyle,
     `Storyboard frame ${panel.panelNumber}.`,
     `${panel.shotType}.`,
     panel.cameraDirection,
     panel.imagePrompt,
     `Setting: ${panel.setting}.`,
-    `Character continuity: ${context.characterContinuity}.`,
-    context.locationContinuity
-      ? `Location continuity: ${context.locationContinuity}.`
+    `Character continuity: ${context.visualBible ? JSON.stringify(context.visualBible.characters) : context.characterContinuity}.`,
+    (context.visualBible || context.locationContinuity)
+      ? `Location continuity: ${context.visualBible ? JSON.stringify(context.visualBible.locations) : context.locationContinuity}.`
       : undefined,
     continuity ? `Continuity notes: ${continuity}.` : undefined,
-    "Cinematic storyboard concept art, clear readable composition, no text, no captions, no watermark.",
+    "Clear readable composition, no text, no captions, no watermark.",
   ]
     .filter(Boolean)
     .join(" ");

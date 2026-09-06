@@ -69,6 +69,7 @@ export async function POST(request: Request) {
       request.signal,
     );
     const response: PanelImageGenerationResponse = {
+      imageBibleVersion: parsed.data.imageContext.visualBible.version,
       panelNumber: parsed.data.panel.panelNumber,
       imagePrompt: result.prompt,
       negativePrompt: result.negativePrompt ?? negativePrompt,

@@ -1,3 +1,4 @@
+import type { VisualBible } from "../lib/visualBible";
 export type StoryboardInput = {
   sceneIdea: string;
   visualReferenceSummary?: string;
@@ -71,6 +72,8 @@ export type StoryboardPanel = {
   negativePrompt: string;
   dialogueOrNarration: string;
   productionNote: string;
+  imageBibleVersion?: number;
+  imageNeedsReview?: boolean;
   imageStatus?: ImageGenerationStatus;
   imageUrl?: string;
   imageError?: string;
@@ -94,6 +97,7 @@ export type ImageGenerationStatus =
 export type ImageProviderName = "mock" | "replicate";
 
 export type StoryboardImageContext = {
+  visualBible?: VisualBible;
   visualStyle: string;
   characterContinuity: string;
   locationContinuity?: string;
@@ -129,6 +133,7 @@ export type PanelImageGenerationRequest = {
 };
 
 export type PanelImageGenerationResponse = {
+  imageBibleVersion: number;
   panelNumber: number;
   imagePrompt: string;
   negativePrompt: string;
@@ -144,6 +149,7 @@ export type PanelImageGenerationResponse = {
 };
 
 export type StoryboardPackage = {
+  visualBible?: VisualBible;
   title: string;
   logline: string;
   genre: string;

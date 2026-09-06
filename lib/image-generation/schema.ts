@@ -1,3 +1,4 @@
+import { visualBibleSchema } from "@/lib/visualBible";
 import { z } from "zod";
 import { storyboardPanelSchema } from "@/lib/storyboardSchema";
 import type {
@@ -6,6 +7,7 @@ import type {
 } from "@/types/storyboard";
 
 export const storyboardImageContextSchema = z.object({
+  visualBible: visualBibleSchema.refine(b => b.approvedVersion === b.version, "Approve the current visual bible before generating images."),
   visualStyle: z.string().trim().min(1).max(1_000),
   characterContinuity: z.string().trim().min(1).max(4_000),
   locationContinuity: z.string().trim().min(1).max(4_000).optional(),

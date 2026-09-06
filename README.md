@@ -220,3 +220,24 @@ npm run test:llm:vercel
 `npm test` runs mocked tests for both providers, including the existing storyboard
 schema, normalization, invalid output, HTTP errors, network failure, cancellation,
 timeouts, and metrics.
+
+### Shared visual bible
+
+After storyboard generation, review and edit the shared visual bible, then select
+**Approve visual direction** to enable individual and batch image generation.
+The app creates version 1 from the storyboard descriptions and preserves the
+selected style and reference summary. Medium, palette, linework, texture,
+rendering, lighting rules, and stable character/location definitions are editable.
+Unspecified details start with consistency instructions and can be refined during
+review; they are not a second model-generated character design.
+
+Saving edits creates a new unapproved version and marks existing images as needing
+review without deleting them. Rendering records the approved bible version and
+exact prompts. Bible editing and new storyboard generation are disabled during
+image generation, including between batch requests. The image API requires an
+approved bible. Older storyboard packages can still pass the package schema, but
+cannot render images without one.
+
+This is a text-based continuity workflow. Shot-specific cast selection, visual
+reference conditioning, durable storage, and image approval remain in APP_TODOS.md.
+Shared prompts do not guarantee visual consistency in generated images.

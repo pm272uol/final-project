@@ -11,7 +11,9 @@ export function StoryboardOutput({
   metadata,
   onGeneratePanelImage,
   onGenerateAllImages,
+  imagesDisabled = false,
 }: {
+  imagesDisabled?: boolean;
   data: StoryboardPackage;
   metadata?: GenerationMetadata;
   onGeneratePanelImage: (panelNumber: number) => Promise<void>;
@@ -77,7 +79,7 @@ export function StoryboardOutput({
             <button
               type="button"
               onClick={() => void onGenerateAllImages()}
-              disabled={data.storyboard.some(
+              disabled={imagesDisabled || data.storyboard.some(
                 (panel) => panel.imageStatus === "generating",
               )}
               className="mono border-[1.5px] border-ink bg-acid px-3 py-2 text-[10px] font-bold uppercase tracking-wider shadow-[3px_3px_0_#161813] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50"
@@ -93,6 +95,7 @@ export function StoryboardOutput({
               key={panel.panelNumber}
               panel={panel}
               onCopyStatus={announceCopy}
+              imagesDisabled={imagesDisabled}
               onGenerateImage={onGeneratePanelImage}
             />
           ))}
@@ -190,9 +193,11 @@ function PanelCard({
   panel,
   onCopyStatus,
   onGenerateImage,
+  imagesDisabled,
 }: {
   panel: StoryboardPackage["storyboard"][number];
   onCopyStatus: (message: string) => void;
+  imagesDisabled: boolean;
   onGenerateImage: (panelNumber: number) => Promise<void>;
 }) {
   const [copied, setCopied] = useState(false);
@@ -228,6 +233,7 @@ function PanelCard({
       <div className="flex flex-1 flex-col p-5">
         <PanelImage
           panel={panel}
+          imagesDisabled={imagesDisabled}
           onGenerateImage={onGenerateImage}
         />
         <h3 className="display text-3xl leading-tight">{panel.storyBeat}</h3>
@@ -273,8 +279,10 @@ function PanelCard({
 function PanelImage({
   panel,
   onGenerateImage,
+  imagesDisabled,
 }: {
   panel: StoryboardPackage["storyboard"][number];
+  imagesDisabled: boolean;
   onGenerateImage: (panelNumber: number) => Promise<void>;
 }) {
   const generating = panel.imageStatus === "generating";
@@ -287,6 +295,7 @@ function PanelImage({
       data-testid={`panel-image-${panel.panelNumber}`}
       aria-busy={generating}
     >
+      {panel.imageNeedsReview && <p role="status" className="bg-acid px-3 py-2 text-sm">Needs review · rendered with visual bible v{panel.imageBibleVersion ?? "unknown"}</p>}
       <div className="relative aspect-video">
         {complete ? (
           // Provider domains are dynamic and Replicate URLs are temporary.
@@ -326,7 +335,7 @@ function PanelImage({
         <button
           type="button"
           onClick={() => void onGenerateImage(panel.panelNumber)}
-          disabled={generating}
+          disabled={generating || imagesDisabled}
           className="mono shrink-0 border border-ink bg-paper px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider hover:bg-acid disabled:cursor-wait disabled:opacity-50"
           aria-label={`${failed ? "Retry" : complete ? "Regenerate" : "Generate"} image for panel ${panel.panelNumber}`}
         >
