@@ -238,3 +238,6 @@ evaluation/.cache/
 !lib/**
 
 .DS_Store
+
+.next-e2e/
+.next-build/

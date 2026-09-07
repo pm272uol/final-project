@@ -52,6 +52,7 @@ export const locationSchema = z.object({
 }).strict();
 
 export const generatedStoryboardPanelSchema = z.object({
+  shotInstructions: z.string().max(2000).optional(),
   characterIds: z.array(z.string().trim().min(1)).max(30).optional(),
   locationIds: z.array(z.string().trim().min(1)).max(30).optional(),
   visibleProps: z.array(z.string().trim().min(1).max(500)).max(30).optional(),
@@ -77,7 +78,19 @@ export const generatedStoryboardPanelSchema = z.object({
   productionNote: z.string().trim().min(1, "Production note is required."),
 }).strict();
 
-export const storyboardPanelSchema = generatedStoryboardPanelSchema.extend({
+export const visualReferenceSchema = z.object({
+  id: z.string().min(1).max(100),
+  imageUrl: z.string().max(8_000_000).refine(value => /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value) || /^\/api\/mock-panel-image\?seed=\d+$/.test(value), "Use an embedded PNG, JPEG or WebP reference."),
+  purpose: z.enum(["style", "character", "location", "composition"]),
+  entityId: z.string().max(100).optional(), approved: z.boolean(), version: z.number().int().positive(),
+}).strict();
+
+const renderedPanelSchema = generatedStoryboardPanelSchema.extend({
+  imageApproved: z.boolean().optional(),
+  imageSelected: z.boolean().optional(),
+  imageReferenceIds: z.array(z.string()).optional(),
+  imageModelVersion: z.string().optional(),
+  imageSettings: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   imageBibleVersion: z.number().int().positive().optional(),
   imageNeedsReview: z.boolean().optional(),
   imageStatus: z
@@ -96,7 +109,10 @@ export const storyboardPanelSchema = generatedStoryboardPanelSchema.extend({
   imageGenerationDurationMs: z.number().int().nonnegative().optional(),
 }).strict();
 
+export const storyboardPanelSchema = renderedPanelSchema.extend({ imageHistory: z.array(renderedPanelSchema).max(100).optional() });
+
 const storyboardPackageFields = {
+  visualReferences: z.array(visualReferenceSchema).max(30).optional(),
   visualBible: visualBibleSchema.optional(),
   title: z.string().trim().min(1, "Title is required."),
   logline: z.string().trim().min(1, "Logline is required."),
@@ -127,7 +143,7 @@ export const generatedStoryboardPackageSchema = z.object({
   storyboard: z
     .array(generatedStoryboardPanelSchema)
     .min(1, "At least one storyboard panel is required."),
-}).strict() satisfies z.ZodType<StoryboardPackage>;
+}).omit({ visualReferences: true }).strict() satisfies z.ZodType<StoryboardPackage>;
 
 export const storyboardPackageSchema = z.object({
   ...storyboardPackageFields,

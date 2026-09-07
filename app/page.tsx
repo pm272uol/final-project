@@ -1,5 +1,12 @@
 "use client";
 
+import { generatedStoryboardPanelSchema } from "@/lib/storyboardSchema";
+import { ProjectControls } from "@/components/ProjectControls";
+import { pendingPanels, replacePanelImage } from "@/lib/panelRevision";
+import { PanelRevisionControls } from "@/components/PanelRevisionControls";
+import { relevantReferences } from "@/lib/image-generation/references";
+import { ContinuityEditor } from "@/components/ContinuityEditor";
+import { ReferenceFrameReview } from "@/components/ReferenceFrameReview";
 import { VisualBibleReview } from "@/components/VisualBibleReview";
 import { reviseVisualBible } from "@/lib/visualBible";
 import { useMemo, useRef, useState } from "react";
@@ -22,6 +29,7 @@ import type {
 
 export default function Home() {
   const [input, setInput] = useState<StoryboardInput>(DEFAULT_INPUT);
+  const [projectInput, setProjectInput] = useState<StoryboardInput | null>(null);
   const [storyboard, setStoryboard] = useState<StoryboardPackage | null>(null);
   const [generationMetadata, setGenerationMetadata] =
     useState<GenerationMetadata | null>(null);
@@ -44,6 +52,8 @@ export default function Home() {
   const [streamedOutput, setStreamedOutput] = useState("");
   const [references, setReferences] = useState<ReferenceImageDraft[]>([]);
   const [visualSummary, setVisualSummary] = useState("");
+  const batchPause = useRef<AbortController | null>(null);
+  const batchCancelled = useRef(false);
   const generationController = useRef<AbortController | null>(null);
   const imageGenerationControllers = useRef(
     new Map<number, AbortController>(),
@@ -58,13 +68,14 @@ export default function Home() {
   );
 
   async function generate() {
+    if (storyboard && !window.confirm("Replace the current storyboard? Save or export it first to keep your work.")) return;
     setLoading(true);
     setError("");
     setErrorDetails([]);
     setStreamedOutput("");
     setActivePanelCount(input.panelCount);
     setProgressMessage("Preparing the storyboard prompt...");
-    setStatusMessage("Generating storyboard with the local model.");
+    setStatusMessage("Generating storyboard with the configured model.");
     const controller = new AbortController();
     generationController.current = controller;
 
@@ -113,6 +124,7 @@ export default function Home() {
       }
 
       setStoryboard(data.storyboard);
+      setProjectInput(input);
       setGenerationMetadata(data.metadata);
       setRequestedPanelCount(input.panelCount);
       setStatusMessage(
@@ -141,12 +153,13 @@ export default function Home() {
     generationController.current?.abort();
   }
 
-  async function generatePanelImage(panelNumber: number) {
+  async function generatePanelImage(panelNumber: number, referenceFrame = false, sameSeed = false) {
     if (!storyboard?.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version) return;
+    if (!referenceFrame && !storyboard.visualReferences?.some(r => r.purpose === "style" && r.approved)) return;
     const panel = storyboard.storyboard.find(
       (item) => item.panelNumber === panelNumber,
     );
-    if (!panel) return;
+    if (!panel || panel.imageApproved || imageGenerationControllers.current.has(panelNumber)) return;
 
     imageGenerationControllers.current.get(panelNumber)?.abort();
     const controller = new AbortController();
@@ -162,22 +175,31 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          panel,
+          panel: generatedStoryboardPanelSchema.strip().parse(panel),
+          seed: sameSeed ? panel.imageSeed : undefined,
+          references: referenceFrame ? [] : relevantReferences(storyboard, panel),
           imageContext: createImageContext(storyboard),
         }),
         signal: controller.signal,
       });
       const result = (await response.json().catch(() => null)) as
-        | (PanelImageGenerationResponse & { error?: string })
+        | (PanelImageGenerationResponse & { error?: string; validationIssues?: string[] })
         | null;
 
       if (!response.ok || !result) {
         throw new Error(
-          result?.error ?? "Image generation failed. Please retry this panel.",
+          result?.validationIssues?.join(" ") || result?.error || "Image generation failed. Please retry this panel.",
         );
       }
 
+      if (controller.signal.aborted || imageGenerationControllers.current.get(panelNumber) !== controller) return;
+      if (referenceFrame) {
+        setStoryboard(current => current ? { ...current, visualReferences: [...(current.visualReferences ?? []), { id: crypto.randomUUID(), imageUrl: result.imageUrl, purpose: "style", approved: false, version: (current.visualReferences?.length ?? 0) + 1 }] } : current);
+      }
       updatePanelImage(panelNumber, {
+        imageReferenceIds: result.imageReferenceIds,
+        imageModelVersion: result.imageModelVersion,
+        imageSettings: result.imageSettings,
         imageBibleVersion: result.imageBibleVersion,
         imageNeedsReview: false,
         imageStatus: "complete",
@@ -192,7 +214,7 @@ export default function Home() {
         imageHeight: result.imageHeight,
         imageGeneratedAt: result.imageGeneratedAt,
         imageGenerationDurationMs: result.imageGenerationDurationMs,
-      });
+      }, true);
       setStatusMessage(`Image for panel ${panelNumber} generated successfully.`);
     } catch (caught) {
       const message = controller.signal.aborted
@@ -212,23 +234,30 @@ export default function Home() {
     }
   }
 
-  async function generateAllPanelImages() {
+  async function generateAllPanelImages(mode: "missing" | "failed" | "selected" = "missing") {
     if (!storyboard?.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version) return;
-    const pendingPanels = storyboard.storyboard.filter(
-      (panel) => panel.imageStatus !== "generating",
-    );
+    if (!storyboard.visualReferences?.some(r => r.purpose === "style" && r.approved)) return;
+    const pending = pendingPanels(storyboard.storyboard, mode);
+    batchCancelled.current = false;
+    const pauseController = new AbortController();
+    batchPause.current = pauseController;
     setStatusMessage(
-      `Generating images for ${pendingPanels.length} storyboard panels.`,
+      `Generating images for ${pending.length} storyboard panels.`,
     );
 
     setBatchGenerating(true);
     try {
-      for (let index = 0; index < pendingPanels.length; index += 2) {
+      for (let index = 0; index < pending.length && !batchCancelled.current; index += 1) {
+        const started = Date.now();
         await Promise.all(
-          pendingPanels
-            .slice(index, index + 2)
+          pending
+            .slice(index, index + 1)
             .map((panel) => generatePanelImage(panel.panelNumber)),
         );
+        // Pace hosted batches for low-credit provider limits; mock runs stay instant.
+        if (index + 1 < pending.length && !batchCancelled.current && storyboard.visualReferences?.some(r => r.approved && r.imageUrl.startsWith("data:image/"))) {
+          await new Promise<void>(resolve => { const done = () => { clearTimeout(timer); pauseController.signal.removeEventListener("abort", done); resolve(); }; const timer = window.setTimeout(done, Math.max(0, 12_000 - (Date.now() - started))); pauseController.signal.addEventListener("abort", done, { once: true }); });
+        }
       }
     } finally {
       setBatchGenerating(false);
@@ -238,6 +267,7 @@ export default function Home() {
   function updatePanelImage(
     panelNumber: number,
     update: Partial<StoryboardPackage["storyboard"][number]>,
+    replace = false,
   ) {
     setStoryboard((current) =>
       current
@@ -245,7 +275,7 @@ export default function Home() {
             ...current,
             storyboard: current.storyboard.map((panel) =>
               panel.panelNumber === panelNumber
-                ? { ...panel, ...update }
+                ? (replace ? replacePanelImage(panel, update) : { ...panel, ...update })
                 : panel,
             ),
           }
@@ -274,7 +304,7 @@ export default function Home() {
           </div>
           <div className="mono flex items-center gap-2 text-[10px] uppercase tracking-wider">
             <span className="h-2 w-2 bg-rust" />
-            Ollama local
+            Storyboard workspace
           </div>
         </div>
       </nav>
@@ -350,6 +380,7 @@ export default function Home() {
           className="min-w-0 min-h-[70vh] p-5 sm:p-8 lg:p-10"
           aria-busy={loading}
         >
+          <ProjectControls key={generationMetadata?.durationMs ?? "saved"} input={projectInput ?? input} storyboard={storyboard} busy={loading || batchGenerating || Boolean(storyboard?.storyboard.some(p => p.imageStatus === "generating"))} onOpen={project => { setStoryboard(project.storyboard); setInput(project.input); setProjectInput(project.input); setRequestedPanelCount(project.input.panelCount); setGenerationMetadata(null); setError(""); setStatusMessage(`Opened ${project.name}.`); }} />
           {loading ? (
             <GenerationStatus
               message={progressMessage}
@@ -366,8 +397,11 @@ export default function Home() {
                 onSave={draft => { try { setStoryboard(reviseVisualBible(storyboard, draft)); } catch (error) { setError(error instanceof Error ? error.message : "Invalid visual bible"); } }}
                 onApprove={() => setStoryboard({ ...storyboard, visualBible: { ...storyboard.visualBible!, approvedVersion: storyboard.visualBible!.version } })}
               />}
+              <ReferenceFrameReview onUseUploads={references.length ? () => { void Promise.all(references.map(async reference => ({ id: reference.id, purpose: "style" as const, imageUrl: await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(reference.blob); }), approved: false, version: 1 }))).then(added => setStoryboard(current => current ? { ...current, visualReferences: [...(current.visualReferences ?? []).filter(r => !added.some(a => a.id === r.id)), ...added] } : current)).catch(() => setError("Could not prepare uploaded references.")); } : undefined} data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onGenerate={() => void generatePanelImage(1, true)} onChange={visualReferences => setStoryboard({ ...storyboard, visualReferences, storyboard: storyboard.storyboard.map(p => ({ ...p, imageNeedsReview: Boolean(p.imageUrl) })) })} />
+              <ContinuityEditor data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
+              <PanelRevisionControls data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} onGenerate={(n, sameSeed) => void generatePanelImage(n, false, sameSeed)} onBatch={mode => void generateAllPanelImages(mode)} onCancel={() => { batchCancelled.current = true; batchPause.current?.abort(); imageGenerationControllers.current.forEach(controller => controller.abort()); }} onReset={() => { if (window.confirm("Discard the current scene? Save or export first to keep it.")) { setStoryboard(null); setGenerationMetadata(null); } }} />
               <StoryboardOutput
-                imagesDisabled={batchGenerating || !storyboard.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version}
+                imagesDisabled={batchGenerating || !storyboard.visualReferences?.some(r => r.purpose === "style" && r.approved) || !storyboard.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version}
                 data={storyboard}
                 metadata={generationMetadata ?? undefined}
                 onGeneratePanelImage={generatePanelImage}
@@ -385,7 +419,7 @@ export default function Home() {
       <footer className="border-t-[1.5px] border-ink bg-ink px-5 py-5 text-paper sm:px-8">
         <div className="mono mx-auto flex max-w-[1500px] flex-wrap justify-between gap-3 text-[10px] uppercase tracking-wider text-paper/55">
           <span>Framewright / Storyboard Orchestrator</span>
-          <span>Mock generation • Rule-based evaluation</span>
+          <span>Reference-guided images • Rule-based evaluation</span>
         </div>
       </footer>
     </main>

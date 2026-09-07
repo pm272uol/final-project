@@ -1,3 +1,6 @@
+import sharp from "sharp";
+import { randomInt } from "node:crypto";
+import { persistProviderImage } from "@/lib/image-generation/assets";
 import { NextResponse } from "next/server";
 import { getAppConfig } from "@/lib/config";
 import { createImageGenerationService } from "@/lib/image-generation/providerFactory";
@@ -53,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const service = createImageGenerationService(config);
+    const service = createImageGenerationService({ ...config, replicateModel: "black-forest-labs/flux-2-klein-4b" });
     const { prompt, negativePrompt } = buildSdxlPrompt(
       parsed.data.panel,
       parsed.data.imageContext,
@@ -61,6 +64,8 @@ export async function POST(request: Request) {
     const result = await service.generateImage(
       prompt,
       {
+        references: parsed.data.references,
+        seed: parsed.data.seed ?? randomInt(0, 4294967296),
         width: 1024,
         height: 576,
         negativePrompt,
@@ -68,18 +73,23 @@ export async function POST(request: Request) {
       },
       request.signal,
     );
+    const imageUrl = await persistProviderImage(result.imageUrl, request.signal);
+    const dimensions = imageUrl.startsWith("data:image/") ? await sharp(Buffer.from(imageUrl.split(",")[1], "base64")).metadata() : undefined;
     const response: PanelImageGenerationResponse = {
+      imageReferenceIds: parsed.data.references?.map(r => `${r.id}@${r.version}`) ?? [],
+      imageModelVersion: result.modelVersion,
+      imageSettings: result.settings,
       imageBibleVersion: parsed.data.imageContext.visualBible.version,
       panelNumber: parsed.data.panel.panelNumber,
       imagePrompt: result.prompt,
       negativePrompt: result.negativePrompt ?? negativePrompt,
-      imageUrl: result.imageUrl,
+      imageUrl,
       imageStatus: "complete",
       imageProvider: result.provider,
       imageModel: result.model,
       imageSeed: result.seed,
-      imageWidth: result.width,
-      imageHeight: result.height,
+      imageWidth: dimensions?.width ?? result.width,
+      imageHeight: dimensions?.height ?? result.height,
       imageGeneratedAt: result.generatedAt,
       imageGenerationDurationMs: result.durationMs,
     };

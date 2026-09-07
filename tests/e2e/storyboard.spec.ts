@@ -46,7 +46,7 @@ test("generates a complete scene-aware storyboard package", async ({ page }) => 
 
   await page.getByRole("button", { name: "Approve visual direction" }).click();
   await page
-    .getByRole("button", { name: "Generate image for panel 1" })
+    .getByRole("button", { name: "Generate reference frame", exact: true })
     .click();
   await expect(
     page.getByTestId("generation-status"),
@@ -58,6 +58,7 @@ test("generates a complete scene-aware storyboard package", async ({ page }) => 
     "mock / deterministic-storyboard-placeholder-v1",
   );
 
+  await page.getByRole("button", { name: "Approve this reference", exact: true }).click();
   await page.getByTestId("generate-all-images").click();
   await expect(
     page.getByTestId("storyboard-output").locator("img"),
@@ -96,7 +97,7 @@ test("isolates a failed panel image and allows retry", async ({ page }) => {
 
   await page.getByRole("button", { name: "Approve visual direction" }).click();
   await page
-    .getByRole("button", { name: "Generate image for panel 1" })
+    .getByRole("button", { name: "Generate reference frame", exact: true })
     .click();
   await expect(page.getByTestId("panel-image-1")).toContainText(
     "Image generation failed. Please retry this panel.",
@@ -106,9 +107,9 @@ test("isolates a failed panel image and allows retry", async ({ page }) => {
   ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Generate image for panel 2" }),
-  ).toBeEnabled();
+  ).toBeDisabled();
 
-  await page.getByRole("button", { name: "Retry image for panel 1" }).click();
+  await page.getByRole("button", { name: "Generate reference frame", exact: true }).click();
   await expect(
     page.getByTestId("panel-image-1").locator("img"),
   ).toBeVisible();
@@ -213,7 +214,8 @@ test("requires bible approval and flags images after editing", async ({ page }) 
   await page.getByRole("button", { name: "Save visual bible" }).click();
   await expect(page.getByText("Version 2 · Awaiting approval")).toBeVisible();
   await page.getByRole("button", { name: "Approve visual direction" }).click();
-  await generate.click();
+  await page.getByRole("button", { name: "Generate reference frame", exact: true }).click();
+  await page.getByRole("button", { name: "Approve this reference", exact: true }).click();
   await expect(page.getByTestId("panel-image-1").locator("img")).toBeVisible();
   const original = await page.getByTestId("panel-image-1").locator("img").getAttribute("src");
   await page.getByLabel("palette", { exact: true }).fill("Warm earth tones");
@@ -224,4 +226,65 @@ test("requires bible approval and flags images after editing", async ({ page }) 
   await page.getByRole("button", { name: "Approve visual direction" }).click();
   await page.getByRole("button", { name: "Regenerate image for panel 1" }).click();
   await expect(page.getByTestId("panel-image-1")).not.toContainText("Needs review");
+});
+
+test("preserves locks and failed replacements, restores alternatives and reopens durable projects", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Panels", { exact: true }).selectOption("4");
+  await page.getByTestId("generate-button").click();
+  await page.getByRole("button", { name: "Approve visual direction" }).click();
+  await page.getByRole("button", { name: "Generate reference frame", exact: true }).click();
+  await page.getByRole("button", { name: "Approve this reference", exact: true }).click();
+  await page.getByTestId("generate-all-images").click();
+  await expect(page.getByTestId("storyboard-output").locator("img")).toHaveCount(4);
+  await page.getByText("Edit and review panel 2", { exact: true }).click();
+  await page.getByLabel("Approve and lock panel 2", { exact: true }).check();
+  const locked = await page.getByTestId("panel-image-2").locator("img").getAttribute("src");
+  await page.getByTestId("generate-all-images").click();
+  await expect(page.getByTestId("panel-image-2").locator("img")).toHaveAttribute("src", locked!);
+  const original = await page.getByTestId("panel-image-3").locator("img").getAttribute("src");
+  await page.route("**/api/generate-panel-image", route => route.fulfill({ status: 502, json: { error: "Replacement test failure" } }));
+  await page.getByRole("button", { name: "Regenerate image for panel 3", exact: true }).click();
+  await expect(page.getByTestId("panel-image-3")).toContainText("Replacement test failure");
+  await expect(page.getByTestId("panel-image-3").locator("img")).toHaveAttribute("src", original!);
+  await page.unroute("**/api/generate-panel-image");
+  await page.getByRole("button", { name: "Retry image for panel 3", exact: true }).click();
+  await expect(page.getByTestId("panel-image-3")).not.toContainText("Replacement test failure");
+  await page.getByText("Edit and review panel 3", { exact: true }).click();
+  await page.getByRole("button", { name: "Restore alternative 1", exact: true }).click();
+  await expect(page.getByTestId("panel-image-3").locator("img")).toHaveAttribute("src", original!);
+  await page.getByLabel("Action for panel 3", { exact: true }).fill("The astronaut lifts the tiny plant toward the window.");
+  await page.getByRole("button", { name: "Save panel 3 edits", exact: true }).click();
+  await page.getByRole("button", { name: "Save project", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Project storage" }).getByRole("status")).toContainText("Saved");
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export contact sheet", exact: true }).click();
+  expect((await download).suggestedFilename()).toBe("storyboard-contact-sheet.png");
+  await page.reload();
+  await page.getByRole("button", { name: "Browse saved projects", exact: true }).click();
+  await page.getByRole("region", { name: "Project storage" }).getByRole("button", { name: /^Open / }).click();
+  await expect(page.getByTestId("panel-image-2")).toContainText("Approved · locked");
+  await expect(page.getByTestId("panel-image-3").locator("img")).toHaveAttribute("src", original!);
+  await expect(page.getByRole("button", { name: "Active approved reference", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("cancels the batch without discarding the reference or starting remaining shots", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Panels", { exact: true }).selectOption("4");
+  await page.getByTestId("generate-button").click();
+  await page.getByRole("button", { name: "Approve visual direction" }).click();
+  await page.getByRole("button", { name: "Generate reference frame", exact: true }).click();
+  await page.getByRole("button", { name: "Approve this reference", exact: true }).click();
+  const reference = await page.getByTestId("panel-image-1").locator("img").getAttribute("src");
+  let requests = 0;
+  await page.route("**/api/generate-panel-image", async route => { requests++; await new Promise(resolve => setTimeout(resolve, 800)); await route.fulfill({ status: 503, json: { error: "Delayed provider" } }).catch(() => {}); });
+  await page.getByTestId("generate-all-images").click();
+  await expect.poll(() => requests).toBe(1);
+  await page.getByRole("button", { name: "Cancel image generation", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save project", exact: true })).toBeEnabled();
+  await expect(page.getByTestId("panel-image-1").locator("img")).toHaveAttribute("src", reference!);
+  expect(requests).toBe(1);
+  await expect(page.getByRole("button", { name: "Active approved reference", exact: true })).toBeVisible();
 });

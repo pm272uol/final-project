@@ -122,3 +122,11 @@ textarea {
     animation: none;
   }
 }
+
+@media print {
+  nav, aside, footer, main > header, button, input, select, textarea,
+  section[aria-label="Project storage"], section[aria-label="Panel revisions"],
+  section[aria-label="Reference frame review"], details { display: none !important; }
+  main, section { background: white !important; padding: 0.5rem !important; }
+  article { break-inside: avoid; box-shadow: none !important; }
+}

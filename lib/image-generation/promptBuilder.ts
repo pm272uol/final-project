@@ -63,7 +63,7 @@ export function buildSdxlPrompt(panel: StoryboardPanel, context: StoryboardImage
   // Keep the actual shot first because image providers may truncate long prompts.
   return {
     prompt: visualDescriptions([
-      panel.shotType, panel.action, panel.cameraDirection, `Setting: ${panel.setting}`,
+      panel.shotType, panel.action, panel.cameraDirection, panel.shotInstructions ?? "", `Setting: ${panel.setting}`,
       bible ? visualBiblePrompt(bible) : context.visualStyle,
       ...characters, ...locations, ...(panel.visibleProps ?? []),
       "Clear readable composition, no text, no captions, no watermark",

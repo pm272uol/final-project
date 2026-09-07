@@ -20,10 +20,11 @@ This version supports local Ollama with `gemma4:e4b` and Vercel AI Gateway with
 `google/gemma-4-26b-a4b-it`. See [LLM Backends](#llm-backends) for configuration.
 A deterministic mock provider remains available for development.
 
-Panel image generation is mock-first and uses deterministic local SVG renders by
-default. A server-side Replicate adapter for `stability-ai/sdxl` is included,
-but authentication, persistence, and durable image storage remain outside the
-prototype. Replicate API output URLs expire after one hour by default.
+Panel images use a deterministic local mock by default. Hosted rendering uses the
+low-cost, locally runnable **FLUX.2 Klein 4B** with approved visual references.
+Projects, embedded images, approvals and alternatives can be saved in this browser
+and exported as portable JSON. Authentication and multi-user storage remain outside
+this prototype.
 
 See [docs/ollama-integration.md](docs/ollama-integration.md) for configuration,
 fallback behavior, and integration-test instructions.
@@ -41,14 +42,25 @@ To use Replicate, create an API token and add these values to `.env.local`:
 ```env
 IMAGE_PROVIDER=replicate
 REPLICATE_API_TOKEN=r8_your_token_here
-REPLICATE_MODEL=stability-ai/sdxl
+REPLICATE_MODEL=black-forest-labs/flux-2-klein-4b
 IMAGE_GENERATION_TIMEOUT_MS=120000
-IMAGE_MAX_REQUEST_BYTES=65536
+IMAGE_MAX_REQUEST_BYTES=32000000
 ```
 
 Restart the development server after changing `.env.local`. Provider calls run
 only from `POST /api/generate-panel-image`; the token is never sent to the
 browser.
+
+Generate a storyboard → approve the visual bible → generate/upload and approve a
+reference frame → optionally approve character/location references → generate
+missing panels → review, edit and lock frames → save/export. Ordinary batches skip
+completed or locked images; selected regeneration preserves image history. Use
+**Browse saved projects** to reopen after a reload, or import exported JSON.
+
+Klein supports up to five relevant reference images. The app fixes 0.5 MP output,
+shrinks reference inputs, and paces hosted batches. Published model pricing starts
+around $0.014; host/input pricing varies. No expensive or cloud-only image-model
+fallback is used. [Model choice, local execution and limitations](docs/reference-image-workflow.md).
 
 ## Commands
 

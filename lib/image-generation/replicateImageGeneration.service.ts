@@ -1,3 +1,5 @@
+import sharp from "sharp";
+import { referenceSheet } from "./referenceSheet";
 import {
   ImageProviderError,
   type ImageGenerationService,
@@ -50,6 +52,11 @@ export class ReplicateImageGenerationService
     options: ImageGenerationOptions = {},
     signal?: AbortSignal,
   ) {
+    const klein = this.model === "black-forest-labs/flux-2-klein-4b";
+    if (klein) {
+      const roles = (options.references ?? []).map((ref, index) => `Image ${index + 1}: ${ref.purpose === "style" ? "use only its visual medium, palette and texture; create the requested new camera angle, setting and subjects" : `preserve the ${ref.purpose} appearance of ${ref.entityId ?? "the depicted subject"} only when visible in the requested shot`}.`).join(" ");
+      prompt = `${prompt} ${roles} Create one storyboard frame, not a collage. ${options.negativePrompt ? `Avoid: ${options.negativePrompt}` : ""}`.trim();
+    }
     const startedAt = performance.now();
     const width = options.width ?? 1024;
     const height = options.height ?? 576;
@@ -60,6 +67,12 @@ export class ReplicateImageGenerationService
       : timeoutController.signal;
 
     try {
+      const nativeImages = klein ? await Promise.all((options.references ?? []).map(async ref => {
+        if (!ref.imageUrl.startsWith("data:image/")) throw new ImageProviderError("IMAGE_PROVIDER_REQUEST_FAILED", "Hosted references must be embedded images.");
+        const bytes = await sharp(Buffer.from(ref.imageUrl.split(",")[1], "base64"), { limitInputPixels: 20_000_000 }).rotate().resize(704, 704, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
+        return `data:image/png;base64,${bytes.toString("base64")}`;
+      })) : [];
+      const styleImage = this.model === "fofr/style-transfer" ? await referenceSheet(options.references ?? []) : undefined;
       const version = await this.resolveVersion(combinedSignal);
       const response = await this.fetchImplementation(
         "https://api.replicate.com/v1/predictions",
@@ -68,7 +81,18 @@ export class ReplicateImageGenerationService
           headers: this.headers({ Prefer: "wait=60" }),
           body: JSON.stringify({
             version,
-            input: {
+            input: klein ? {
+              prompt, images: nativeImages,
+              aspect_ratio: "16:9", output_megapixels: "0.5", output_format: "png",
+              go_fast: true, seed: options.seed,
+            } : this.model === "fofr/style-transfer" ? {
+              prompt, negative_prompt: options.negativePrompt,
+              style_image: styleImage,
+              structure_image: options.references?.find(r => r.purpose === "composition")?.imageUrl,
+              model: "fast", width, height, seed: options.seed,
+              number_of_images: 1, output_format: "png", output_quality: 100,
+              structure_denoising_strength: 0.85,
+            } : {
               prompt,
               negative_prompt: options.negativePrompt,
               width,
@@ -106,6 +130,8 @@ export class ReplicateImageGenerationService
 
       return {
         imageUrl,
+        modelVersion: version,
+        settings: klein ? { model: "klein-4b-distilled", steps: 4, guidanceScale: 1, outputMegapixels: "0.5", aspectRatio: "16:9", goFast: "true", negativePromptControl: "prompt-text", referenceMaxSide: 704 } as Record<string, string | number> : this.model === "fofr/style-transfer" ? { model: "fast", steps: 4, guidanceScale: 2 } : { model: "sdxl", steps: options.steps ?? 30, guidanceScale: options.guidanceScale ?? 7 },
         provider: this.name,
         model: this.model,
         prompt,
@@ -118,6 +144,7 @@ export class ReplicateImageGenerationService
       };
     } catch (error) {
       if (error instanceof ImageProviderError) throw error;
+      if (error instanceof SyntaxError) throw new ImageProviderError("IMAGE_PROVIDER_INVALID_RESPONSE", "Replicate returned malformed JSON.", error);
       if (combinedSignal.aborted) {
         const timedOut = timeoutController.signal.aborted && !signal?.aborted;
         throw new ImageProviderError(
@@ -210,6 +237,8 @@ export class ReplicateImageGenerationService
         );
       }
 
+      const statusUrl = new URL(getUrl);
+      if (statusUrl.origin !== "https://api.replicate.com" || !statusUrl.pathname.startsWith("/v1/predictions/")) throw new ImageProviderError("IMAGE_PROVIDER_INVALID_RESPONSE", "Unexpected prediction status URL.");
       const response = await this.fetchImplementation(getUrl, {
         headers: this.headers(),
         signal,

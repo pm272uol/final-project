@@ -61,7 +61,13 @@ export type ShotType =
   | "point-of-view shot"
   | "tracking shot";
 
+export type VisualReference = { id: string; imageUrl: string; purpose: "style" | "character" | "location" | "composition"; entityId?: string; approved: boolean; version: number };
+
 export type StoryboardPanel = {
+  shotInstructions?: string;
+  imageApproved?: boolean;
+  imageSelected?: boolean;
+  imageHistory?: Omit<StoryboardPanel, "imageHistory">[];
   characterIds?: string[];
   locationIds?: string[];
   visibleProps?: string[];
@@ -77,6 +83,9 @@ export type StoryboardPanel = {
   negativePrompt: string;
   dialogueOrNarration: string;
   productionNote: string;
+  imageReferenceIds?: string[];
+  imageModelVersion?: string;
+  imageSettings?: Record<string, string | number>;
   imageBibleVersion?: number;
   imageNeedsReview?: boolean;
   imageStatus?: ImageGenerationStatus;
@@ -110,6 +119,8 @@ export type StoryboardImageContext = {
 };
 
 export type ImageGenerationOptions = {
+  references?: VisualReference[];
+
   width?: number;
   height?: number;
   negativePrompt?: string;
@@ -120,6 +131,8 @@ export type ImageGenerationOptions = {
 };
 
 export type ImageGenerationResult = {
+  modelVersion?: string;
+  settings?: Record<string, string | number>;
   imageUrl: string;
   provider: ImageProviderName;
   model: string;
@@ -133,11 +146,16 @@ export type ImageGenerationResult = {
 };
 
 export type PanelImageGenerationRequest = {
+  references?: VisualReference[];
+  seed?: number;
   panel: StoryboardPanel;
   imageContext: StoryboardImageContext;
 };
 
 export type PanelImageGenerationResponse = {
+  imageReferenceIds?: string[];
+  imageModelVersion?: string;
+  imageSettings?: Record<string, string | number>;
   imageBibleVersion: number;
   panelNumber: number;
   imagePrompt: string;
@@ -154,6 +172,7 @@ export type PanelImageGenerationResponse = {
 };
 
 export type StoryboardPackage = {
+  visualReferences?: VisualReference[];
   visualBible?: VisualBible;
   title: string;
   logline: string;

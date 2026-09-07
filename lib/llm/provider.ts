@@ -76,7 +76,7 @@ export abstract class BaseLLMProvider implements LLMProvider {
         if (!parsed.success)
           throw new LLMError(
             "INVALID_MODEL_RESPONSE",
-            "Model output failed schema validation.",
+            `Model output failed schema validation: ${parsed.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join("; ").slice(0, 2000)}`,
           );
         request.validate?.(parsed.data);
         result = { ...response, data: parsed.data };

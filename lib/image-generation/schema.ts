@@ -1,7 +1,7 @@
 import { resolveShotReferences, shotPromptIssues } from "./promptBuilder";
 import { visualBibleSchema } from "@/lib/visualBible";
 import { z } from "zod";
-import { storyboardPanelSchema } from "@/lib/storyboardSchema";
+import { visualReferenceSchema, storyboardPanelSchema } from "@/lib/storyboardSchema";
 import type {
   PanelImageGenerationRequest,
   StoryboardImageContext,
@@ -16,6 +16,8 @@ export const storyboardImageContextSchema = z.object({
 }).strict() satisfies z.ZodType<StoryboardImageContext>;
 
 export const panelImageGenerationRequestSchema = z.object({
+  references: z.array(visualReferenceSchema.refine(r => r.approved, "Approve references before sending them.")).max(5, "Klein supports at most five references per shot. Unapprove an unused reference.").optional(),
+  seed: z.number().int().min(0).max(4294967295).optional(),
   panel: storyboardPanelSchema,
   imageContext: storyboardImageContextSchema,
 }).strict().superRefine((request, ctx) => {

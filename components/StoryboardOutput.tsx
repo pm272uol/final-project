@@ -85,7 +85,7 @@ export function StoryboardOutput({
               className="mono border-[1.5px] border-ink bg-acid px-3 py-2 text-[10px] font-bold uppercase tracking-wider shadow-[3px_3px_0_#161813] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50"
               data-testid="generate-all-images"
             >
-              Generate all images
+              Generate missing images
             </button>
           </div>
         </div>
@@ -286,7 +286,7 @@ function PanelImage({
   onGenerateImage: (panelNumber: number) => Promise<void>;
 }) {
   const generating = panel.imageStatus === "generating";
-  const complete = panel.imageStatus === "complete" && panel.imageUrl;
+  const complete = Boolean(panel.imageUrl);
   const failed = panel.imageStatus === "failed";
 
   return (
@@ -296,6 +296,9 @@ function PanelImage({
       aria-busy={generating}
     >
       {panel.imageNeedsReview && <p role="status" className="bg-acid px-3 py-2 text-sm">Needs review · rendered with visual bible v{panel.imageBibleVersion ?? "unknown"}</p>}
+      {failed && <p role="alert" className="p-2 text-rust">{panel.imageError}</p>}
+      {generating && <p role="status" className="p-2">Rendering replacement; previous image retained.</p>}
+      {panel.imageApproved && <p className="p-2">Approved · locked</p>}
       <div className="relative aspect-video">
         {complete ? (
           // Provider domains are dynamic and Replicate URLs are temporary.
@@ -335,7 +338,7 @@ function PanelImage({
         <button
           type="button"
           onClick={() => void onGenerateImage(panel.panelNumber)}
-          disabled={generating || imagesDisabled}
+          disabled={generating || imagesDisabled || panel.imageApproved}
           className="mono shrink-0 border border-ink bg-paper px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider hover:bg-acid disabled:cursor-wait disabled:opacity-50"
           aria-label={`${failed ? "Retry" : complete ? "Regenerate" : "Generate"} image for panel ${panel.panelNumber}`}
         >

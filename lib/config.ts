@@ -16,9 +16,9 @@ const configSchema = z.object({
   maxRequestBytes: z.coerce.number().int().positive().default(16_384),
   imageProvider: imageProviderSchema.default("mock"),
   replicateApiToken: z.string().trim().optional(),
-  replicateModel: z.string().trim().min(1).default("stability-ai/sdxl"),
+  replicateModel: z.string().trim().min(1).default("black-forest-labs/flux-2-klein-4b"),
   imageGenerationTimeoutMs: z.coerce.number().int().positive().default(120_000),
-  imageMaxRequestBytes: z.coerce.number().int().positive().default(65_536),
+  imageMaxRequestBytes: z.coerce.number().int().positive().default(32_000_000),
 });
 
 export type AppConfig = z.infer<typeof configSchema> & { llm?: LLMConfig };
