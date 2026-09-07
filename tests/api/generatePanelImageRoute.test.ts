@@ -25,7 +25,7 @@ describe("POST /api/generate-panel-image", () => {
     expect(body.imageStatus).toBe("complete");
     expect(body.imageProvider).toBe("mock");
     expect(body.imageUrl).toContain("/api/mock-panel-image");
-    expect(body.imagePrompt).toContain("Character continuity");
+    expect(body.imagePrompt).toContain(validRequest().imageContext.visualBible.characters[0].appearance);
     expect(body.negativePrompt).toContain("watermark");
     expect(body.imageWidth).toBe(1024);
     expect(body.imageHeight).toBe(576);
@@ -127,3 +127,18 @@ function jsonRequest(body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+describe("shot prompt validation", () => {
+  it("rejects unknown references and style exclusions before provider creation", async () => {
+    const service = vi.spyOn(providerFactory, "createImageGenerationService");
+    try {
+      const request = validRequest();
+      expect((await POST(jsonRequest({ ...request, panel: { ...request.panel, characterIds: ["unknown"] } }))).status).toBe(400);
+      expect((await POST(jsonRequest({ ...request, panel: { ...request.panel, shotNegativePrompts: ["watercolour"] } }))).status).toBe(400);
+      expect((await POST(jsonRequest({ ...request, panel: { ...request.panel, shotType: "close-up", cameraDirection: "wide shot" } }))).status).toBe(400);
+      expect(service).not.toHaveBeenCalled();
+    } finally {
+      service.mockRestore();
+    }
+  });
+});

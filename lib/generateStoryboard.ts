@@ -1,3 +1,4 @@
+import { resolveShotReferences } from "@/lib/image-generation/promptBuilder";
 import { createVisualBible } from "@/lib/visualBible";
 import { NextResponse } from "next/server";
 import { getAppConfig, type AppConfig } from "@/lib/config";
@@ -91,9 +92,17 @@ export async function createGenerateStoryboardResponse(
     );
   }
 
+  const visualBible = createVisualBible(outputResult.data, inputResult.data);
   return NextResponse.json({
     mode: providerResult.metadata.mode,
-    storyboard: { ...outputResult.data, visualStyle: inputResult.data.visualStyle, visualBible: createVisualBible(outputResult.data, inputResult.data) },
+    storyboard: {
+      ...outputResult.data,
+      visualStyle: inputResult.data.visualStyle,
+      visualBible,
+      storyboard: outputResult.data.storyboard.map(panel => resolveShotReferences(panel, {
+        visualBible, visualStyle: inputResult.data.visualStyle, characterContinuity: "",
+      })),
+    },
     metadata: {
       ...providerResult.metadata,
       fallbackUsed,

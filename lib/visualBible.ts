@@ -54,7 +54,38 @@ export function reviseVisualBible(board: StoryboardPackage, draft: VisualBible):
   return { ...board, visualBible: bible, storyboard: board.storyboard.map(panel => ({ ...panel, imageNeedsReview: Boolean(panel.imageUrl) })) };
 }
 
+// These are review guidance, not visual attributes. Keep them in the editor,
+// but never spend the image model's short text context on them.
+const REVIEW_GUIDANCE = new Set([
+  "Follow the appearance description; keep consistent across shots.",
+  "Use a consistent palette appropriate to the selected style and visual direction.",
+  "Keep line treatment consistent with the selected medium.",
+  "Keep surface texture and grain consistent across the sequence.",
+  "Keep light quality consistent within each scene. Allow deliberate changes in time of day, practical lights, and scene mood when specified by the shot.",
+  "Follow the location description consistently.",
+  "Preserve recurring props established in this location.",
+]);
+
+/** Serialize visual descriptions, never JSON keys, IDs, or approval metadata. */
+export function visualDescriptions(values: string[]): string {
+  const seen = new Set<string>();
+  return values.map(value => value.trim()).filter(value => {
+    if (!value || REVIEW_GUIDANCE.has(value)) return false;
+    const key = value.replace(/[.,;]+$/, "").toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).join(". ");
+}
+
 export function visualBiblePrompt(bible: VisualBible): string {
-  const direction = { selectedStyle: bible.selectedStyle, referenceDirection: bible.referenceDirection, medium: bible.medium, palette: bible.palette, linework: bible.linework, texture: bible.texture, renderingTreatment: bible.renderingTreatment, lightingRules: bible.lightingRules };
-  return `Approved visual bible v${bible.version} (takes precedence over shot style and appearance): ${JSON.stringify(direction)}. Preserve these shared visual rules; vary only shot action, framing and intentional scene lighting.`;
+  return visualDescriptions([
+    bible.medium,
+    bible.referenceDirection,
+    bible.palette,
+    bible.linework,
+    bible.texture,
+    bible.renderingTreatment,
+    bible.lightingRules,
+  ]);
 }

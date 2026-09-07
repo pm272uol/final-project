@@ -238,6 +238,12 @@ image generation, including between batch requests. The image API requires an
 approved bible. Older storyboard packages can still pass the package schema, but
 cannot render images without one.
 
-This is a text-based continuity workflow. Shot-specific cast selection, visual
-reference conditioning, durable storage, and image approval remain in APP_TODOS.md.
+Rendering now uses structured action, framing, visible character/location IDs,
+and visible props with the approved bible. Free-form draft prompts cannot override
+the shared style. Explicit event changes replace a character's appearance and,
+where supplied, clothing/accessories for that shot; active changes must be repeated
+in subsequent shots. Exact rendered prompts remain in the raw JSON.
+
+This is a text-based continuity workflow. Visual reference conditioning, durable
+storage, and image approval remain in APP_TODOS.md.
 Shared prompts do not guarantee visual consistency in generated images.

@@ -52,6 +52,16 @@ export const locationSchema = z.object({
 }).strict();
 
 export const generatedStoryboardPanelSchema = z.object({
+  characterIds: z.array(z.string().trim().min(1)).max(30).optional(),
+  locationIds: z.array(z.string().trim().min(1)).max(30).optional(),
+  visibleProps: z.array(z.string().trim().min(1).max(500)).max(30).optional(),
+  shotNegativePrompts: z.array(z.enum(["extra people", "duplicate props", "motion blur", "cluttered background"])).max(20).optional(),
+  continuityChanges: z.array(z.object({
+    appearance: z.string().trim().min(1).max(2000),
+    characterId: z.string().trim().min(1), reason: z.string().trim().min(1).max(1000),
+    clothing: z.string().trim().min(1).max(2000).optional(),
+    accessories: z.string().trim().min(1).max(2000).optional(),
+  }).strict()).max(30).optional(),
   panelNumber: z.number().int().positive(),
   storyBeat: z.string().trim().min(1, "Story beat is required."),
   shotType: z.enum(SHOT_TYPES),

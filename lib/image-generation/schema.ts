@@ -1,3 +1,4 @@
+import { resolveShotReferences, shotPromptIssues } from "./promptBuilder";
 import { visualBibleSchema } from "@/lib/visualBible";
 import { z } from "zod";
 import { storyboardPanelSchema } from "@/lib/storyboardSchema";
@@ -17,4 +18,9 @@ export const storyboardImageContextSchema = z.object({
 export const panelImageGenerationRequestSchema = z.object({
   panel: storyboardPanelSchema,
   imageContext: storyboardImageContextSchema,
-}).strict() satisfies z.ZodType<PanelImageGenerationRequest>;
+}).strict().superRefine((request, ctx) => {
+  const panel = resolveShotReferences(request.panel, request.imageContext);
+  for (const message of shotPromptIssues(panel, request.imageContext)) {
+    ctx.addIssue({ code: "custom", path: ["panel"], message });
+  }
+}) satisfies z.ZodType<PanelImageGenerationRequest>;

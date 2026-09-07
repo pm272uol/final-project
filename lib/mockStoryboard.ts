@@ -34,7 +34,7 @@ const SHOT_TYPES: ShotType[] = [
 
 const CAMERA_DIRECTIONS = [
   "Begin with a locked wide composition that establishes the subject and the physical geography.",
-  "Move to a measured medium frame, holding negative space in the direction of the first clue.",
+  "Move to a measured wide frame, holding negative space in the direction of the first clue.",
   "Push closer at eye level so the central visual becomes unmistakable without losing environmental context.",
   "Use a controlled handheld adjustment as the subject commits to investigating the discovery.",
   "Frame over the subject's shoulder to connect their decision with the central visual.",
@@ -155,6 +155,9 @@ function createPanel(
 
   return {
     panelNumber,
+    characterIds: ["character-1"],
+    locationIds: ["location-1"],
+    visibleProps: [profile.keyVisual],
     storyBeat,
     shotType: SHOT_TYPES[index],
     cameraDirection: CAMERA_DIRECTIONS[index],

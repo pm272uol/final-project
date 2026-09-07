@@ -32,7 +32,7 @@ describe("visual bible", () => {
     const bible = { ...createVisualBible(board, validInput), approvedVersion: 1, texture: "Rough paper grain" };
     for (const panel of board.storyboard) {
       const { prompt } = buildSdxlPrompt(panel, { visualBible: bible, visualStyle: "Noir", characterContinuity: "Projectionist" });
-      expect(prompt).toContain("Approved visual bible v1");
+      expect(prompt).not.toContain("Approved visual bible");
       expect(prompt).toContain("Rough paper grain");
       expect(prompt).not.toContain("Cinematic storyboard concept art");
     }

@@ -62,6 +62,11 @@ export type ShotType =
   | "tracking shot";
 
 export type StoryboardPanel = {
+  characterIds?: string[];
+  locationIds?: string[];
+  visibleProps?: string[];
+  shotNegativePrompts?: ("extra people" | "duplicate props" | "motion blur" | "cluttered background")[];
+  continuityChanges?: { characterId: string; reason: string; appearance: string; clothing?: string; accessories?: string }[];
   panelNumber: number;
   storyBeat: string;
   shotType: ShotType;

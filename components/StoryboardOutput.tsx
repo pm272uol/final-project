@@ -247,7 +247,7 @@ function PanelCard({
         <div className="mt-5 border-l-4 border-acid bg-ink p-4 text-paper">
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="mono text-[10px] uppercase tracking-widest text-acid">
-              Image prompt
+              {panel.imageGenerationPrompt ? "Rendered image prompt" : "Draft image prompt"}
             </span>
             <button
               type="button"
