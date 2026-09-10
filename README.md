@@ -262,8 +262,8 @@ Shared prompts do not guarantee visual consistency in generated images.
 
 ## English voice notes
 
-Record through your microphone (record → stop → transcribe), or upload a saved
-voice note beneath the scene idea. Use **Whisper Turbo locally** or
-**Groq cloud**. Review the transcript before appending it to your scene idea.
+Click **Record scene idea** to record, stop and review in a modal. Saved voice-note
+uploads are available inside the modal. Set `ASR_PROVIDER=local` (default) or
+`ASR_PROVIDER=groq` in `.env` and restart the server to choose the transcription backend.
 See [transcription setup and limitations](docs/transcription.md) for the local
 Python/model installation and server-side `GROQ_API_KEY` configuration.

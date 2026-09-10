@@ -138,7 +138,7 @@ export function MicrophoneRecorder({ disabled, cloud, onActiveChange, onRecorded
     <p className="text-xs text-ink/65">Record your scene idea in English. Stops and transcribes at two minutes.
       {cloud ? " Stopping sends the recording to Groq." : " Transcription starts after you stop."}</p>
     {phase === "idle" ? <button type="button" disabled={disabled} onClick={start}
-      className="border border-ink bg-ink px-3 py-2 text-sm font-bold text-paper disabled:opacity-50">Record scene idea</button> : <>
+      className="border border-ink bg-ink px-3 py-2 text-sm font-bold text-paper disabled:opacity-50">Start recording</button> : <>
       <p role="status" className="text-sm font-bold">{phase === "requesting" ? "Waiting for microphone permission…"
         : phase === "stopping" ? "Finishing recording…" : `● Recording ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`}</p>
       {phase === "recording" && <button type="button" onClick={stop}

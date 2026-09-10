@@ -4,12 +4,28 @@ import { MicrophoneRecorder } from "@/components/MicrophoneRecorder";
 import { useEffect, useRef, useState } from "react";
 import { AUDIO_ACCEPT, MAX_AUDIO_BYTES, type TranscriptionProvider, type TranscriptionResult } from "@/lib/transcription/options";
 
-export function VoiceNotePanel({ disabled, remainingChars, onAppend }: {
-  disabled: boolean;
-  remainingChars: number;
-  onAppend: (text: string) => void;
-}) {
-  const [provider, setProvider] = useState<TranscriptionProvider>("local");
+type Props = { disabled: boolean; remainingChars: number; onAppend: (text: string) => void };
+
+export function VoiceNotePanel(props: Props) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (!open && wasOpen.current) trigger.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
+  return <div className="mt-3">
+    <button ref={trigger} type="button" disabled={props.disabled} onClick={() => setOpen(true)}
+      className="border border-ink/30 px-3 py-2 text-sm font-bold transition hover:bg-ink/5 disabled:opacity-50">
+      Record scene idea
+    </button>
+    {open && <VoiceNoteDialog {...props} onClose={() => setOpen(false)} />}
+  </div>;
+}
+
+function VoiceNoteDialog({ disabled, remainingChars, onAppend, onClose }: Props & { onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [provider, setProvider] = useState<TranscriptionProvider>();
   const [file, setFile] = useState<File>();
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -18,10 +34,33 @@ export function VoiceNotePanel({ disabled, remainingChars, onAppend }: {
   const [result, setResult] = useState<TranscriptionResult>();
   const uploadInput = useRef<HTMLInputElement | null>(null);
   const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => {
+    const element = dialog.current!;
+    element.showModal();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const configController = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/transcribe/config", { cache: "no-store", signal: configController.signal });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Transcription is unavailable.");
+        if (data.provider !== "local" && data.provider !== "groq") throw new Error("Transcription is unavailable.");
+        if (!configController.signal.aborted) setProvider(data.provider);
+      } catch (failure) {
+        if (!configController.signal.aborted) setError(failure instanceof Error ? failure.message : "Transcription is unavailable.");
+      }
+    })();
+    return () => {
+      configController.abort();
+      controller.current?.abort();
+      element.close();
+      document.body.style.overflow = overflow;
+    };
+  }, []);
 
   async function transcribe(audio = file) {
-    if (!audio || controller.current || disabled) return;
+    if (!audio || controller.current || disabled || !provider) return;
     if (audio.size > MAX_AUDIO_BYTES) { setError("Choose an audio file smaller than 20 MB."); return; }
     const active = new AbortController();
     controller.current = active;
@@ -30,9 +69,9 @@ export function VoiceNotePanel({ disabled, remainingChars, onAppend }: {
     try {
       const body = new FormData();
       body.append("file", audio);
-      body.append("provider", provider);
       const response = await fetch("/api/transcribe", { method: "POST", body, signal: active.signal });
       const data = await response.json();
+      if (active.signal.aborted) return;
       if (!response.ok) throw new Error(data.error ?? "Transcription failed.");
       setText(data.text);
       setResult(data);
@@ -44,43 +83,48 @@ export function VoiceNotePanel({ disabled, remainingChars, onAppend }: {
     }
   }
 
-  return <details className="mt-4 border border-ink/20 p-3" onToggle={event => { if (recording) event.currentTarget.open = true; }}>
-    <summary className="cursor-pointer text-sm font-bold">Use an English voice note</summary>
-    <div className="mt-3 space-y-3">
-      <label className="block text-sm" htmlFor="transcription-provider">Transcribe with</label>
-      <select id="transcription-provider" className="field text-sm" value={provider}
-        disabled={disabled || busy || recording} onChange={event => setProvider(event.target.value as TranscriptionProvider)}>
-        <option value="local">Whisper Turbo — local</option>
-        <option value="groq">Whisper Turbo — Groq cloud</option>
-      </select>
+  const locked = disabled || busy || recording || !provider;
+  return <dialog ref={dialog} aria-labelledby="voice-dialog-title" aria-describedby="voice-dialog-description"
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-xl overflow-y-auto border-[1.5px] border-ink bg-paper p-5 text-ink shadow-xl backdrop:bg-black/50 sm:p-6">
+    <div className="mb-4 flex items-start justify-between gap-4">
+      <div>
+        <h2 id="voice-dialog-title" className="text-xl font-bold">Record your scene idea</h2>
+        <p id="voice-dialog-description" className="mt-1 text-sm text-ink/65">Speak, stop, then review the words before adding them to your brief.</p>
+      </div>
+      <button type="button" onClick={onClose} aria-label="Close voice recorder" className="px-2 py-1 text-xl">×</button>
+    </div>
+    <div className="space-y-4">
       <p className="text-xs text-ink/65">{provider === "local"
-        ? "Audio is processed on the machine running this app. Local Whisper setup is required."
-        : "Transcribing sends this audio to Groq. Your server needs a Groq API key."}</p>
-      <MicrophoneRecorder disabled={disabled || busy} cloud={provider === "groq"}
-        onActiveChange={setRecording} onRecorded={(audio) => { if (uploadInput.current) uploadInput.current.value = ""; setFile(audio); void transcribe(audio); }} />
-      <p className="text-xs font-bold">Or upload a saved voice note</p>
-      <label className="block text-sm" htmlFor="voice-note">Audio file (up to 20 MB)</label>
-      <input ref={uploadInput} id="voice-note" type="file" accept={AUDIO_ACCEPT} disabled={disabled || busy || recording}
-        className="block w-full text-sm" onChange={event => { setFile(event.target.files?.[0]); setError(""); }} />
-      <button type="button" className="border border-ink px-3 py-2 text-sm font-bold disabled:opacity-50"
-        disabled={disabled || busy || recording || !file} onClick={() => void transcribe()}>
-        {busy ? "Transcribing…" : provider === "groq" ? "Transcribe with Groq" : "Transcribe locally"}
-      </button>
-      {file?.name.startsWith("microphone.") && <p className="text-xs">Microphone recording ready. You can retry transcription if needed.</p>}
-      {busy && <button type="button" className="ml-3 text-sm underline" onClick={() => controller.current?.abort()}>Cancel transcription</button>}
-      <p role="status" className="text-xs">{busy ? "Transcribing your English voice note…" : result ? `Transcript ready from ${result.provider === "local" ? "local Whisper Turbo" : "Groq Whisper Turbo"}. Review it before adding.` : ""}</p>
+        ? "Audio is transcribed locally on the machine running this app."
+        : provider === "groq" ? "Audio is sent to Groq for transcription when you stop."
+        : error ? "Transcription could not be configured." : "Preparing voice input…"}</p>
+      <MicrophoneRecorder disabled={disabled || busy || !provider} cloud={provider === "groq"}
+        onActiveChange={setRecording} onRecorded={audio => { if (uploadInput.current) uploadInput.current.value = ""; setFile(audio); void transcribe(audio); }} />
+      <details>
+        <summary className="cursor-pointer text-xs font-bold">Upload a saved voice note instead</summary>
+        <div className="mt-3 space-y-2">
+          <label className="block text-sm" htmlFor="voice-note">Audio file (up to 20 MB)</label>
+          <input ref={uploadInput} id="voice-note" type="file" accept={AUDIO_ACCEPT} disabled={locked}
+            className="block w-full text-sm" onChange={event => { setFile(event.target.files?.[0]); setError(""); }} />
+        </div>
+      </details>
+      {file && !busy && <button type="button" className="border border-ink px-3 py-2 text-sm font-bold disabled:opacity-50"
+        disabled={locked} onClick={() => void transcribe()}>{file.name.startsWith("microphone.") ? "Retry transcription" : "Transcribe audio"}</button>}
+      {busy && <button type="button" className="text-sm underline" onClick={() => controller.current?.abort()}>Cancel transcription</button>}
+      <p role="status" className="text-xs">{busy ? "Transcribing your English voice note…" : result ? "Transcript ready. Review it before adding." : ""}</p>
       {error && <p role="alert" className="text-sm text-rust">{error}</p>}
       {result && <>
         <label htmlFor="voice-transcript" className="block text-sm font-bold">Review transcript</label>
         <textarea id="voice-transcript" className="field min-h-28 text-sm" value={text}
-          disabled={disabled || busy || recording} onChange={event => setText(event.target.value)} />
+          disabled={locked} onChange={event => setText(event.target.value)} />
         <p className="text-xs">{text.trim().length} transcript characters; {Math.max(0, remainingChars)} available in the scene idea.</p>
         {text.trim().length > remainingChars && <p className="text-sm text-rust">Shorten the transcript or scene idea to fit the 1,200 character scene limit.</p>}
-        <button type="button" className="border border-ink px-3 py-2 text-sm font-bold disabled:opacity-50"
-          disabled={disabled || busy || recording || !text.trim() || text.trim().length > remainingChars} onClick={() => { onAppend(text.trim()); setText(""); setResult(undefined); }}>
+        <button type="button" className="w-full border border-ink bg-ink px-3 py-3 text-sm font-bold text-paper disabled:opacity-50"
+          disabled={locked || !text.trim() || text.trim().length > remainingChars} onClick={() => { onAppend(text.trim()); onClose(); }}>
           Add to scene idea
         </button>
       </>}
     </div>
-  </details>;
+  </dialog>;
 }

@@ -1,11 +1,15 @@
+import { getTranscriptionProvider } from "@/lib/transcription/config";
 import { NextResponse } from "next/server";
 import { MAX_AUDIO_BYTES } from "@/lib/transcription/options";
 import { transcribe, TranscriptionError } from "@/lib/transcription/service";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const MAX_REQUEST_BYTES = MAX_AUDIO_BYTES + 64 * 1024;
 export async function POST(request: Request) {
   try {
+    const provider = getTranscriptionProvider();
     if (Number(request.headers.get("content-length")) > MAX_REQUEST_BYTES) {
       throw new TranscriptionError("Audio upload exceeds the 20 MB limit.", 413);
     }
@@ -33,8 +37,6 @@ export async function POST(request: Request) {
       } }).formData();
     } catch { throw new TranscriptionError("The audio upload could not be read.", 400); }
     const file = form.get("file");
-    const provider = form.get("provider");
-    if (provider !== "local" && provider !== "groq") throw new TranscriptionError("Choose local or Groq transcription.", 400);
     if (!(file instanceof File) || form.getAll("file").length !== 1 || file.size === 0) throw new TranscriptionError("Choose one non-empty audio file.", 400);
     if (file.size > MAX_AUDIO_BYTES) throw new TranscriptionError("Audio upload exceeds the 20 MB limit.", 413);
     if (!/\.(wav|mp3|m4a|ogg|flac|webm|mp4)$/i.test(file.name)) throw new TranscriptionError("Use WAV, MP3, M4A, OGG, FLAC, WebM or MP4 audio.", 415);
