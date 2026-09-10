@@ -17,6 +17,8 @@ export type LLMRequest = {
 };
 export type StructuredLLMRequest<T> = LLMRequest & {
   schema: z.ZodType<T>;
+  /** One same-provider correction for invalid JSON/schema output; never retries transport errors. */
+  repairAttempts?: 0 | 1;
   validate?: (data: T) => void;
 };
 export type LLMResponse = {
@@ -43,6 +45,7 @@ export interface LLMProvider {
 }
 export type LLMRunMetrics = {
   timestamp: string;
+  inferenceDurationMs?: number;
   operation: string;
   provider: string;
   model: string;

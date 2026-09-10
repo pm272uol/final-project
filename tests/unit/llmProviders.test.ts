@@ -271,7 +271,7 @@ describe("transport edge cases", () => {
       new LLMStoryboardProvider(llm).generate(validInput),
     ).rejects.toMatchObject({ code: "INVALID_MODEL_RESPONSE" });
     expect(llm.metricsSink).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, inputTokens: 5 }),
+      expect.objectContaining({ success: false, inputTokens: 10 }),
     );
   });
   it("does not let a metrics sink change a successful result", async () => {
@@ -282,3 +282,53 @@ describe("transport edge cases", () => {
     await expect(llm.generate(request)).resolves.toMatchObject({ text: "ok" });
   });
 });
+
+for (const provider of ["ollama", "vercel"] as const) {
+  describe(`${provider} storyboard format correction`, () => {
+    it("repairs the observed continuity key error, retains the event and accounts for both calls", async () => {
+      const board = createMockStoryboard(validInput);
+      const change = { characterId: "character-1", reason: "Emergence from egg", appearance: "A small wet dinosaur with green scales" };
+      const invalid = structuredClone(board);
+      invalid.storyboard[1].continuityChanges = [{ ...change, "clothing/accessories replacement": null } as typeof change];
+      board.storyboard[1].continuityChanges = [change];
+      const transport = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json(body(provider, JSON.stringify(invalid))))
+        .mockResolvedValueOnce(Response.json(body(provider, JSON.stringify(board))));
+      const llm = make(provider, transport);
+      const onProgress = vi.fn();
+      const result = await new LLMStoryboardProvider(llm).generate(validInput, { onProgress });
+      expect(result.storyboard.storyboard[1].continuityChanges).toEqual([change]);
+      expect(transport).toHaveBeenCalledTimes(2);
+      const repair = JSON.parse(String(transport.mock.calls[1][1]?.body));
+      expect(repair.messages[1]).toEqual({ role: "assistant", content: JSON.stringify(invalid) });
+      expect(repair.messages[2].content).toContain('Unrecognized key: "clothing/accessories replacement"');
+      expect(repair.messages[2].content).toContain("JSON schema:");
+      expect(result.metadata.promptTokens).toBe(10);
+      expect(result.metadata.completionTokens).toBe(14);
+      expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("Correcting") }));
+      expect(llm.metricsSink).toHaveBeenCalledTimes(1);
+      expect(llm.metricsSink).toHaveBeenCalledWith(expect.objectContaining({ success: true, inputTokens: 10, outputTokens: 14 }));
+    });
+    it("stops after one failed correction and never accepts malformed continuity", async () => {
+      const board = createMockStoryboard(validInput);
+      board.storyboard[1].continuityChanges = ["hatches" as never];
+      const transport = vi.fn<typeof fetch>(async () => Response.json(body(provider, JSON.stringify(board))));
+      await expect(new LLMStoryboardProvider(make(provider, transport)).generate(validInput)).rejects.toMatchObject({ code: "INVALID_MODEL_RESPONSE" });
+      expect(transport).toHaveBeenCalledTimes(2);
+    });
+    it("does not retry authentication errors", async () => {
+      const transport = vi.fn<typeof fetch>(async () => Response.json({}, { status: 401 }));
+      await expect(new LLMStoryboardProvider(make(provider, transport)).generate(validInput)).rejects.toMatchObject({ code: "PROVIDER_AUTHENTICATION" });
+      expect(transport).toHaveBeenCalledTimes(1);
+    });
+    it("does not begin a repair when cancelled during validation", async () => {
+      const controller = new AbortController();
+      const transport = vi.fn<typeof fetch>(async () => {
+        controller.abort();
+        return Response.json(body(provider, "{}"));
+      });
+      await expect(new LLMStoryboardProvider(make(provider, transport)).generate(validInput, { signal: controller.signal })).rejects.toBeInstanceOf(Error);
+      expect(transport).toHaveBeenCalledTimes(1);
+    });
+  });
+}

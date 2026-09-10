@@ -155,7 +155,7 @@ export function SceneInputForm({
       >
         <span className="font-bold">
           {loading
-            ? "Generating with local model..."
+            ? "Generating storyboard..."
             : "Generate storyboard prompts"}
         </span>
         <span

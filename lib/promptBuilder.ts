@@ -22,11 +22,21 @@ reference locations by location-1, location-2 etc. in locations array order.
 characterIds and locationIds list only subjects and settings visible in the shot (empty arrays are allowed).
 visibleProps lists only props visible in this shot. shotNegativePrompts selects only applicable exclusions from: "extra people", "duplicate props", "motion blur", "cluttered background".
 continuityChanges lists explicit story events changing wardrobe or carried props:
-objects with characterId, reason, appearance (complete updated appearance, replacing the baseline description), and optional clothing/accessories replacement descriptions.
+Each entry must be an object with exactly these keys:
+- "characterId": the visible character's stable ID.
+- "reason": a non-empty description of the story event causing the change.
+- "appearance": the complete updated appearance, replacing the baseline description.
+- "clothing": optional non-empty replacement clothing description.
+- "accessories": optional non-empty replacement accessory description.
+Example: {"characterId":"character-1","reason":"Picks up a key","appearance":"The same projectionist, now holding a brass key","accessories":"Holding a brass key"}.
+Do not invent keys such as "description", "change", or "clothing/accessories replacement".
+For a creature hatching, describe its visible body in appearance; do not invent clothing.
+Omit optional clothing/accessories keys when unchanged. Do not use null or empty strings.
 Repeat an active change in subsequent shots until another event changes it; otherwise use an empty array.
 The shotType must be exactly one of: establishing shot, wide shot, medium shot,
 close-up, extreme close-up, over-the-shoulder, point-of-view shot, tracking shot.
 
+dialogueOrNarration must be a non-empty string. For a silent shot, use "None (silent shot)."
 continuityNotes and productionNotes must each be arrays of plain strings.
 
 User input:

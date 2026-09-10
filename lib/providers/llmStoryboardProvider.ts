@@ -27,12 +27,14 @@ export class LLMStoryboardProvider implements StoryboardProvider {
       messages: [{ role: "user", content: buildStoryboardPrompt(input) }],
       temperature: 0.2,
       schema: generatedStoryboardPackageSchema,
+      repairAttempts: 1,
       ...context,
       validate: (data) => {
-        if (!validateStoryboardPackage(data, input.panelCount).success)
+        const validation = validateStoryboardPackage(data, input.panelCount);
+        if (!validation.success)
           throw new StoryboardProviderError(
             "INVALID_MODEL_RESPONSE",
-            "Model returned an invalid storyboard sequence.",
+            `Model returned an invalid storyboard sequence: ${validation.issues.join("; ")}`,
           );
       },
     });

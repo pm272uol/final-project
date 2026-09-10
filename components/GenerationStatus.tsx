@@ -91,7 +91,7 @@ export function GenerationStatus({
           <div className="flex items-center gap-3">
             <ActivityIndicator />
             <span className="mono text-[10px] uppercase tracking-[0.18em] text-acid">
-              Local model working
+              Model working
             </span>
           </div>
           <span className="mono text-[10px] uppercase tracking-wider text-paper/55">
@@ -198,7 +198,7 @@ export function GenerationStatus({
               ref={outputRef}
               className="h-56 overflow-auto whitespace-pre-wrap break-words border border-paper/20 bg-black/25 p-4 font-mono text-[11px] leading-relaxed text-paper/70"
               data-testid="generation-stream-output"
-              aria-label="Streaming technical output from the local model"
+              aria-label="Technical output from the configured model"
             >
               {output || "Waiting for the first response chunk..."}
             </pre>

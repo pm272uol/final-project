@@ -165,8 +165,8 @@ export function ReferenceImagePanel({
     <fieldset disabled={disabled} className="min-w-0">
       <legend className="label">03 / Visual references</legend>
       <p className="mb-3 text-xs leading-relaxed text-ink/55">
-        Images stay local, are stripped of metadata in your browser, and are
-        sent only to your local Ollama server.
+        Images are stripped of metadata in your browser and sent to the configured
+        analysis provider. Cloud mode sends them to an external service.
       </p>
 
       {references.length > 0 ? (
