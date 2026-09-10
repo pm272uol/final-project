@@ -241,3 +241,7 @@ evaluation/.cache/
 
 .next-e2e/
 .next-build/
+
+# Local speech recognition environment
+.venv-asr/
+.cache/whisper/

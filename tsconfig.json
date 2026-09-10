@@ -38,6 +38,8 @@
     ".next-build/types/**/*.ts"
   ],
   "exclude": [
+    ".venv-asr",
+    ".cache",
     "node_modules"
   ]
 }

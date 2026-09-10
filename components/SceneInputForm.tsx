@@ -12,6 +12,7 @@ import {
   ReferenceImagePanel,
   type ReferenceImageDraft,
 } from "@/components/ReferenceImagePanel";
+import { VoiceNotePanel } from "@/components/VoiceNotePanel";
 import type { StoryboardInput } from "@/types/storyboard";
 
 type Props = {
@@ -66,6 +67,7 @@ export function SceneInputForm({
           <span>One clear scene works best.</span>
           <span className="mono">{input.sceneIdea.length} chars</span>
         </div>
+        <VoiceNotePanel disabled={loading} remainingChars={1200 - input.sceneIdea.trim().length - (input.sceneIdea.trim() ? 2 : 0)} onAppend={(text) => update("sceneIdea", [input.sceneIdea.trim(), text].filter(Boolean).join("\n\n"))} />
       </div>
 
       <fieldset>

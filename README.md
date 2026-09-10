@@ -259,3 +259,11 @@ in subsequent shots. Exact rendered prompts remain in the raw JSON.
 This is a text-based continuity workflow. Visual reference conditioning, durable
 storage, and image approval remain in APP_TODOS.md.
 Shared prompts do not guarantee visual consistency in generated images.
+
+## English voice notes
+
+Record through your microphone (record → stop → transcribe), or upload a saved
+voice note beneath the scene idea. Use **Whisper Turbo locally** or
+**Groq cloud**. Review the transcript before appending it to your scene idea.
+See [transcription setup and limitations](docs/transcription.md) for the local
+Python/model installation and server-side `GROQ_API_KEY` configuration.
