@@ -149,6 +149,7 @@ export const generatedStoryboardPackageSchema = z.object({
 }).omit({ visualReferences: true }).strict() satisfies z.ZodType<StoryboardPackage>;
 
 export const storyboardPackageSchema = z.object({
+  continuityReview: z.record(z.string(), z.object({ checked: z.boolean(), note: z.string().max(2000) })).optional(),
   ...storyboardPackageFields,
   storyboard: z
     .array(storyboardPanelSchema)

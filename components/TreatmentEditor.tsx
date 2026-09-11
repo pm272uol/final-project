@@ -22,14 +22,15 @@ export function TreatmentEditor({ data, busy, onChange }: { data: StoryboardPack
       {field("Production notes (one per line)", draft.productionNotes.join("\n"), value => setDraft({ ...draft, productionNotes: value.split("\n") }))}
       <p className="text-xs">Changes to visual style, cast or location descriptions update the visual bible and require renewed approval.</p>
       <button className="border p-2" onClick={() => {
-        const parsed = storyboardPackageSchema.safeParse({ ...data, ...draft, storyboard: data.storyboard, visualBible: data.visualBible, visualReferences: data.visualReferences });
+        const parsed = storyboardPackageSchema.safeParse({ ...data, title: draft.title, logline: draft.logline, genre: draft.genre, tone: draft.tone, visualStyle: draft.visualStyle, estimatedDuration: draft.estimatedDuration, characters: draft.characters, locations: draft.locations, continuityNotes: draft.continuityNotes, productionNotes: draft.productionNotes });
         if (!parsed.success) { setError(parsed.error.issues.map(i => i.message).join(" ")); return; }
         let next: StoryboardPackage = parsed.data;
         const changed = draft.visualStyle !== data.visualStyle || JSON.stringify(draft.characters) !== JSON.stringify(data.characters) || JSON.stringify(draft.locations) !== JSON.stringify(data.locations);
-        if (changed && data.visualBible) next = reviseVisualBible(next, { ...data.visualBible, selectedStyle: draft.visualStyle, medium: draft.visualStyle,
+        try { if (changed && data.visualBible) next = reviseVisualBible(next, { ...data.visualBible, selectedStyle: draft.visualStyle, medium: draft.visualStyle,
           characters: data.visualBible.characters.map((c, i) => ({ ...c, name: draft.characters[i]?.name ?? c.name, appearance: draft.characters[i]?.visualDescription ?? c.appearance })),
           locations: data.visualBible.locations.map((l, i) => ({ ...l, name: draft.locations[i]?.name ?? l.name, architecture: draft.locations[i]?.description ?? l.architecture, visualDetails: draft.locations[i]?.mood ?? l.visualDetails })),
         });
+        } catch (error) { setError(error instanceof Error ? error.message : "Visual descriptions are invalid."); return; }
         onChange(next); setEditing(false); setError("");
       }}>Save treatment edits</button>
       {error && <p role="alert">{error}</p>}

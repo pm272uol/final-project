@@ -1,3 +1,4 @@
+import { recoverStoryboard } from "./storyboardRecovery";
 import { z } from "zod";
 import { storyboardInputSchema, storyboardPackageSchema } from "./storyboardSchema";
 import { REFERENCE_PURPOSES } from "./referenceImageOptions";
@@ -17,7 +18,8 @@ export type Workspace = z.infer<typeof workspaceSchema>;
 export type Recovery = { savedAt: string; workspace: Workspace };
 export function recoverWorkspace(value: unknown): Workspace {
   const workspace = workspaceSchema.parse(value);
-  if (workspace.storyboard) workspace.storyboard.storyboard = workspace.storyboard.storyboard.map(p => ({ ...p, imageStatus: p.imageStatus === "generating" ? p.imageUrl ? "complete" : "not_started" : p.imageStatus }));
+  if (workspace.storyboard) workspace.storyboard = recoverStoryboard(workspace.storyboard);
+  workspace.versions = workspace.versions.map(version => ({ ...version, storyboard: recoverStoryboard(version.storyboard) }));
   return workspace;
 }
 async function database(): Promise<IDBDatabase> {

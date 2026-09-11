@@ -175,6 +175,7 @@ export type PanelImageGenerationResponse = {
 };
 
 export type StoryboardPackage = {
+  continuityReview?: Record<string, { checked: boolean; note: string }>;
   visualReferences?: VisualReference[];
   visualBible?: VisualBible;
   title: string;

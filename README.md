@@ -55,12 +55,27 @@ Generate a storyboard → approve the visual bible → generate/upload and appro
 reference frame → optionally approve character/location references → generate
 missing panels → review, edit and lock frames → save/export. Ordinary batches skip
 completed or locked images; selected regeneration preserves image history. Use
-**Browse saved projects** to reopen after a reload, or import exported JSON.
+**Browse saved projects** to reopen a named save, restore the autosaved workspace
+after a reload, or import exported JSON.
 
 Klein supports up to five relevant reference images. The app fixes 0.5 MP output,
 shrinks reference inputs, and paces hosted batches. Published model pricing starts
 around $0.014; host/input pricing varies. No expensive or cloud-only image-model
 fallback is used. [Model choice, local execution and limitations](docs/reference-image-workflow.md).
+
+## Creative workflow tools
+
+Reorder, insert, duplicate and delete shots; edit the complete treatment and panel
+text; assign shot durations and preview sequence playback. Autosave protects applied
+edits and offers recovery after reload. Capture independent storyboard versions to
+compare revisions or input conditions, and export an A4 production PDF.
+
+A continuity checklist records human review notes and flags possible text-level
+mismatches. Generation estimates compare one-shot and batch scopes using matching
+render timings and explicitly configured prices; unavailable estimates stay unknown.
+
+See [the additional-features guide](docs/additional-features.md) for usage,
+configuration, persistence details and limitations.
 
 ## Commands
 
@@ -256,8 +271,8 @@ the shared style. Explicit event changes replace a character's appearance and,
 where supplied, clothing/accessories for that shot; active changes must be repeated
 in subsequent shots. Exact rendered prompts remain in the raw JSON.
 
-This is a text-based continuity workflow. Visual reference conditioning, durable
-storage, and image approval remain in APP_TODOS.md.
+This is a text-based continuity workflow with visual reference conditioning,
+durable browser-local storage, and explicit image approval.
 Shared prompts do not guarantee visual consistency in generated images.
 
 ## English voice notes

@@ -1,3 +1,4 @@
+import { recoverStoryboard } from "./storyboardRecovery";
 import { z } from "zod";
 import { storyboardInputSchema, storyboardPackageSchema } from "./storyboardSchema";
 import { generationMetadataSchema, storyboardVersionSchema } from "./versions";
@@ -11,7 +12,7 @@ export const projectSchema = z.object({
 export type SavedProject = z.infer<typeof projectSchema>;
 export function parseProject(value: unknown): SavedProject {
   const project = projectSchema.parse(value);
-  return { ...project, storyboard: { ...project.storyboard, storyboard: project.storyboard.storyboard.map(p => ({ ...p, imageStatus: p.imageStatus === "generating" ? (p.imageUrl ? "complete" : "not_started") : p.imageStatus })) } };
+  return { ...project, storyboard: recoverStoryboard(project.storyboard), versions: project.versions?.map(version => ({ ...version, storyboard: recoverStoryboard(version.storyboard) })) };
 }
 function database(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
