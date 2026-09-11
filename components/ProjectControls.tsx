@@ -1,16 +1,18 @@
 "use client";
+import type { StoryboardVersion } from "@/lib/versions";
+import type { GenerationMetadata } from "@/types/storyboard";
 import { useState } from "react";
 import type { StoryboardInput, StoryboardPackage } from "@/types/storyboard";
 import { downloadFile, exportContactSheet, listProjects, parseProject, saveProject, type SavedProject } from "@/lib/projects";
 
-export function ProjectControls({ input, storyboard, busy, onOpen }: { input: StoryboardInput; storyboard: StoryboardPackage | null; busy: boolean; onOpen: (p: SavedProject) => void }) {
-  const [projects, setProjects] = useState<SavedProject[]>([]), [status, setStatus] = useState(""), [id, setId] = useState<string | null>(null);
-  const snapshot = (): SavedProject => { if (!storyboard) throw new Error("Generate a storyboard first."); return { formatVersion: 1, id: id ?? crypto.randomUUID(), name: storyboard.title, savedAt: new Date().toISOString(), input, storyboard }; };
+export function ProjectControls({ versions, metadata, id, onIdChange, input, storyboard, busy, onOpen }: { versions: StoryboardVersion[]; metadata: GenerationMetadata | null; id: string | null; onIdChange: (id: string) => void; input: StoryboardInput; storyboard: StoryboardPackage | null; busy: boolean; onOpen: (p: SavedProject) => void }) {
+  const [projects, setProjects] = useState<SavedProject[]>([]), [status, setStatus] = useState("");
+  const snapshot = (): SavedProject => { if (!storyboard) throw new Error("Generate a storyboard first."); return { formatVersion: 1, id: id ?? crypto.randomUUID(), name: storyboard.title, savedAt: new Date().toISOString(), input, storyboard, versions, metadata }; };
   const run = async (action: () => Promise<void>) => { try { await action(); } catch (error) { setStatus(error instanceof Error ? error.message : "Project operation failed."); } };
-  const open = (project: SavedProject) => { if (storyboard && !window.confirm("Replace this scene with the saved project? Save current changes first.")) return; onOpen(project); setId(project.id); setStatus(`Opened ${project.name}.`); };
+  const open = (project: SavedProject) => { if (storyboard && !window.confirm("Replace this scene with the saved project? Save current changes first.")) return; onOpen(project); onIdChange(project.id); setStatus(`Opened ${project.name}.`); };
   return <section className="paper-card p-4 space-y-3" aria-label="Project storage">
     <fieldset disabled={busy} className="flex flex-wrap gap-3">
-      <button disabled={!storyboard} className="border p-2" onClick={() => void run(async () => { const p = snapshot(); await saveProject(p); setId(p.id); setStatus(`Saved ${p.name} in this browser.`); })}>Save project</button>
+      <button disabled={!storyboard} className="border p-2" onClick={() => void run(async () => { const p = snapshot(); await saveProject(p); onIdChange(p.id); setStatus(`Saved ${p.name} in this browser.`); })}>Save project</button>
       <button className="border p-2" onClick={() => void run(async () => { const saved = await listProjects(); setProjects(saved); setStatus(saved.length ? "Choose a saved project." : "No saved projects in this browser."); })}>Browse saved projects</button>
       <button disabled={!storyboard} className="border p-2" onClick={() => void run(async () => { downloadFile("framewright-project.json", new Blob([JSON.stringify(snapshot(), null, 2)], { type: "application/json" })); setStatus("JSON exported with embedded images and generation metadata."); })}>Export project JSON</button>
       <button disabled={!storyboard} className="border p-2" onClick={() => void run(async () => { await exportContactSheet(storyboard!); setStatus("Contact sheet exported."); })}>Export contact sheet</button>

@@ -87,6 +87,7 @@ export const visualReferenceSchema = z.object({
 }).strict();
 
 const renderedPanelSchema = generatedStoryboardPanelSchema.extend({
+  durationSeconds: z.number().min(0.1).max(600).optional(),
   panelId: z.string().min(1).max(100).optional(),
   imageApproved: z.boolean().optional(),
   imageSelected: z.boolean().optional(),

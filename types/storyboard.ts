@@ -65,6 +65,7 @@ export type VisualReference = { id: string; imageUrl: string; purpose: "style" |
 
 export type StoryboardPanel = {
   panelId?: string;
+  durationSeconds?: number;
   sound?: string;
   shotInstructions?: string;
   imageApproved?: boolean;

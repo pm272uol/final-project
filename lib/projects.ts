@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { storyboardInputSchema, storyboardPackageSchema } from "./storyboardSchema";
-import type { StoryboardInput, StoryboardPackage } from "@/types/storyboard";
+import { generationMetadataSchema, storyboardVersionSchema } from "./versions";
+import type { StoryboardPackage } from "@/types/storyboard";
 
 export const projectSchema = z.object({
   formatVersion: z.literal(1), id: z.string().min(1), name: z.string().min(1), savedAt: z.string().datetime(),
   input: storyboardInputSchema, storyboard: storyboardPackageSchema,
+  versions: z.array(storyboardVersionSchema).max(50).optional(), metadata: generationMetadataSchema.nullable().optional(),
 }).strict();
-export type SavedProject = { formatVersion: 1; id: string; name: string; savedAt: string; input: StoryboardInput; storyboard: StoryboardPackage };
+export type SavedProject = z.infer<typeof projectSchema>;
 export function parseProject(value: unknown): SavedProject {
   const project = projectSchema.parse(value);
   return { ...project, storyboard: { ...project.storyboard, storyboard: project.storyboard.storyboard.map(p => ({ ...p, imageStatus: p.imageStatus === "generating" ? (p.imageUrl ? "complete" : "not_started") : p.imageStatus })) } };
