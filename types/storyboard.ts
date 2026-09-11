@@ -64,6 +64,8 @@ export type ShotType =
 export type VisualReference = { id: string; imageUrl: string; purpose: "style" | "character" | "location" | "composition"; entityId?: string; approved: boolean; version: number };
 
 export type StoryboardPanel = {
+  panelId?: string;
+  sound?: string;
   shotInstructions?: string;
   imageApproved?: boolean;
   imageSelected?: boolean;

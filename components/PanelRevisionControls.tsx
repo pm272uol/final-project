@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { MAX_PANELS, sequencePanels } from "@/lib/panelSequence";
+import { useEffect, useState } from "react";
 import type { StoryboardPackage, StoryboardPanel } from "@/types/storyboard";
 import { SHOT_TYPES } from "@/lib/storyboardOptions";
 import { generatedStoryboardPanelSchema } from "@/lib/storyboardSchema";
@@ -19,8 +20,15 @@ export function PanelRevisionControls({ data, busy, onChange, onGenerate, onBatc
       <button disabled={!busy} className="border p-2" onClick={onCancel}>Cancel image generation</button>
       <button disabled={busy} className="border p-2" onClick={onReset}>New scene</button>
     </div>
-    {data.storyboard.map(panel => <details key={panel.panelNumber} className="border p-3"><summary>Edit and review panel {panel.panelNumber}</summary>
+    {data.storyboard.map((panel, index) => <details key={panel.panelId ?? panel.panelNumber} className="border p-3"><summary>Edit and review panel {panel.panelNumber}</summary>
       <fieldset disabled={busy} className="space-y-3 mt-3">
+        <div className="flex flex-wrap gap-2" aria-label={`Sequence panel ${panel.panelNumber}`}>
+          <button className="border p-2" disabled={index === 0} onClick={() => onChange(sequencePanels(data, index, "up"))}>Move panel {panel.panelNumber} up</button>
+          <button className="border p-2" disabled={index === data.storyboard.length - 1} onClick={() => onChange(sequencePanels(data, index, "down"))}>Move panel {panel.panelNumber} down</button>
+          <button className="border p-2" disabled={data.storyboard.length >= MAX_PANELS} onClick={() => onChange(sequencePanels(data, index, "insert"))}>Insert after panel {panel.panelNumber}</button>
+          <button className="border p-2" disabled={data.storyboard.length >= MAX_PANELS} onClick={() => onChange(sequencePanels(data, index, "duplicate"))}>Duplicate panel {panel.panelNumber}</button>
+          <button className="border p-2" disabled={data.storyboard.length === 1} onClick={() => { if (window.confirm(`Delete panel ${panel.panelNumber} and its image history?`)) onChange(sequencePanels(data, index, "delete")); }}>Delete panel {panel.panelNumber}</button>
+        </div>
         <label className="block"><input type="checkbox" disabled={!panel.imageUrl || (panel.imageNeedsReview && !panel.imageApproved)} checked={panel.imageApproved ?? false} onChange={e => update({ ...panel, imageApproved: e.target.checked })} />Approve and lock panel {panel.panelNumber}</label>
         {panel.imageNeedsReview && <button className="border p-2" onClick={() => update({ ...panel, imageNeedsReview: false })}>Confirm image matches current direction</button>}
         <fieldset disabled={panel.imageApproved} className="space-y-3">
@@ -40,16 +48,17 @@ export function PanelRevisionControls({ data, busy, onChange, onGenerate, onBatc
 }
 function ShotEditor({ panel, data, onSave }: { panel: StoryboardPanel; data: StoryboardPackage; onSave: (p: StoryboardPanel) => void }) {
   const [draft, setDraft] = useState(panel), [error, setError] = useState("");
+  useEffect(() => { setDraft(panel); }, [panel]);
   return <div className="space-y-2">
     <label className="block">Shot type for panel {panel.panelNumber}<select value={draft.shotType} onChange={e => setDraft({ ...draft, shotType: e.target.value as StoryboardPanel["shotType"] })}>{SHOT_TYPES.map(type => <option key={type}>{type}</option>)}</select></label>
-    {([ ["action", "Action"], ["cameraDirection", "Framing and camera"], ["setting", "Setting"], ["shotInstructions", "Image instructions"] ] as const).map(([key, label]) => <label key={key} className="block">{label} for panel {panel.panelNumber}<textarea aria-label={`${label} for panel ${panel.panelNumber}`} className="w-full border p-2" value={draft[key] ?? ""} onChange={e => setDraft({ ...draft, [key]: e.target.value })} /></label>)}
+    {([ ["storyBeat", "Story beat"], ["dialogueOrNarration", "Dialogue or narration"], ["sound", "Sound"], ["productionNote", "Production note"], ["imagePrompt", "Draft image prompt"], ["negativePrompt", "Draft negative prompt"], ["action", "Action"], ["cameraDirection", "Framing and camera"], ["setting", "Setting"], ["shotInstructions", "Image instructions"] ] as const).map(([key, label]) => <label key={key} className="block">{label} for panel {panel.panelNumber}<textarea aria-label={`${label} for panel ${panel.panelNumber}`} className="w-full border p-2" value={draft[key] ?? ""} onChange={e => setDraft({ ...draft, [key]: e.target.value })} /></label>)}
     <button className="border p-2" onClick={() => {
-      const fields = { action: draft.action, cameraDirection: draft.cameraDirection, setting: draft.setting, shotInstructions: draft.shotInstructions, shotType: draft.shotType };
+      const fields = { storyBeat: draft.storyBeat, dialogueOrNarration: draft.dialogueOrNarration, sound: draft.sound, productionNote: draft.productionNote, imagePrompt: draft.imagePrompt, negativePrompt: draft.negativePrompt, action: draft.action, cameraDirection: draft.cameraDirection, setting: draft.setting, shotInstructions: draft.shotInstructions, shotType: draft.shotType };
       const candidate = { ...panel, ...fields };
       const parsed = generatedStoryboardPanelSchema.strip().safeParse(candidate);
       const issues = shotPromptIssues(candidate, { visualBible: data.visualBible, visualStyle: data.visualStyle, characterContinuity: "" });
       if (!parsed.success || issues.length) { setError(issues.join(" ") || "Complete all shot fields."); return; }
-      onSave({ ...candidate, imageNeedsReview: Boolean(panel.imageUrl) }); setError("");
+      onSave({ ...candidate, imageNeedsReview: panel.imageNeedsReview || (Boolean(panel.imageUrl) && ["storyBeat", "action", "cameraDirection", "setting", "shotInstructions", "shotType", "imagePrompt", "negativePrompt"].some(key => panel[key as keyof StoryboardPanel] !== candidate[key as keyof StoryboardPanel])) }); setError("");
     }}>Save panel {panel.panelNumber} edits</button>
     {error && <p role="alert">{error}</p>}
   </div>;

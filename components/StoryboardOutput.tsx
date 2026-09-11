@@ -92,7 +92,7 @@ export function StoryboardOutput({
         <div className="grid gap-6 xl:grid-cols-2">
           {data.storyboard.map((panel) => (
             <PanelCard
-              key={panel.panelNumber}
+              key={panel.panelId ?? panel.panelNumber}
               panel={panel}
               onCopyStatus={announceCopy}
               imagesDisabled={imagesDisabled}
@@ -267,6 +267,7 @@ function PanelCard({
           </p>
         </div>
 
+        {panel.sound && <p className="mt-4 text-sm"><strong>Sound:</strong> {panel.sound}</p>}
         <p className="mt-4 text-xs leading-relaxed text-ink/55">
           <strong className="text-ink">Production:</strong>{" "}
           {panel.productionNote}

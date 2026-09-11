@@ -1,6 +1,7 @@
 "use client";
 
 import { generatedStoryboardPanelSchema } from "@/lib/storyboardSchema";
+import { TreatmentEditor } from "@/components/TreatmentEditor";
 import { ProjectControls } from "@/components/ProjectControls";
 import { pendingPanels, replacePanelImage } from "@/lib/panelRevision";
 import { PanelRevisionControls } from "@/components/PanelRevisionControls";
@@ -33,7 +34,7 @@ export default function Home() {
   const [storyboard, setStoryboard] = useState<StoryboardPackage | null>(null);
   const [generationMetadata, setGenerationMetadata] =
     useState<GenerationMetadata | null>(null);
-  const [requestedPanelCount, setRequestedPanelCount] = useState(
+  const [requestedPanelCount, setRequestedPanelCount] = useState<number>(
     DEFAULT_INPUT.panelCount,
   );
   const [activePanelCount, setActivePanelCount] = useState(
@@ -380,7 +381,7 @@ export default function Home() {
           className="min-w-0 min-h-[70vh] p-5 sm:p-8 lg:p-10"
           aria-busy={loading}
         >
-          <ProjectControls key={generationMetadata?.durationMs ?? "saved"} input={projectInput ?? input} storyboard={storyboard} busy={loading || batchGenerating || Boolean(storyboard?.storyboard.some(p => p.imageStatus === "generating"))} onOpen={project => { setStoryboard(project.storyboard); setInput(project.input); setProjectInput(project.input); setRequestedPanelCount(project.input.panelCount); setGenerationMetadata(null); setError(""); setStatusMessage(`Opened ${project.name}.`); }} />
+          <ProjectControls key={generationMetadata?.durationMs ?? "saved"} input={projectInput ?? input} storyboard={storyboard} busy={loading || batchGenerating || Boolean(storyboard?.storyboard.some(p => p.imageStatus === "generating"))} onOpen={project => { setStoryboard(project.storyboard); setInput(project.input); setProjectInput(project.input); setRequestedPanelCount(project.storyboard.storyboard.length); setGenerationMetadata(null); setError(""); setStatusMessage(`Opened ${project.name}.`); }} />
           {loading ? (
             <GenerationStatus
               message={progressMessage}
@@ -398,8 +399,9 @@ export default function Home() {
                 onApprove={() => setStoryboard({ ...storyboard, visualBible: { ...storyboard.visualBible!, approvedVersion: storyboard.visualBible!.version } })}
               />}
               <ReferenceFrameReview onUseUploads={references.length ? () => { void Promise.all(references.map(async reference => ({ id: reference.id, purpose: "style" as const, imageUrl: await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(reference.blob); }), approved: false, version: 1 }))).then(added => setStoryboard(current => current ? { ...current, visualReferences: [...(current.visualReferences ?? []).filter(r => !added.some(a => a.id === r.id)), ...added] } : current)).catch(() => setError("Could not prepare uploaded references.")); } : undefined} data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onGenerate={() => void generatePanelImage(1, true)} onChange={visualReferences => setStoryboard({ ...storyboard, visualReferences, storyboard: storyboard.storyboard.map(p => ({ ...p, imageNeedsReview: Boolean(p.imageUrl) })) })} />
+              <TreatmentEditor data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
               <ContinuityEditor data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
-              <PanelRevisionControls data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} onGenerate={(n, sameSeed) => void generatePanelImage(n, false, sameSeed)} onBatch={mode => void generateAllPanelImages(mode)} onCancel={() => { batchCancelled.current = true; batchPause.current?.abort(); imageGenerationControllers.current.forEach(controller => controller.abort()); }} onReset={() => { if (window.confirm("Discard the current scene? Save or export first to keep it.")) { setStoryboard(null); setGenerationMetadata(null); } }} />
+              <PanelRevisionControls data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={board => { setStoryboard(board); setRequestedPanelCount(board.storyboard.length); }} onGenerate={(n, sameSeed) => void generatePanelImage(n, false, sameSeed)} onBatch={mode => void generateAllPanelImages(mode)} onCancel={() => { batchCancelled.current = true; batchPause.current?.abort(); imageGenerationControllers.current.forEach(controller => controller.abort()); }} onReset={() => { if (window.confirm("Discard the current scene? Save or export first to keep it.")) { setStoryboard(null); setGenerationMetadata(null); } }} />
               <StoryboardOutput
                 imagesDisabled={batchGenerating || !storyboard.visualReferences?.some(r => r.purpose === "style" && r.approved) || !storyboard.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version}
                 data={storyboard}

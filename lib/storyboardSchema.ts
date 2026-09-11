@@ -52,6 +52,7 @@ export const locationSchema = z.object({
 }).strict();
 
 export const generatedStoryboardPanelSchema = z.object({
+  sound: z.string().max(4000).optional(),
   shotInstructions: z.string().max(2000).optional(),
   characterIds: z.array(z.string().trim().min(1)).max(30).optional(),
   locationIds: z.array(z.string().trim().min(1)).max(30).optional(),
@@ -86,6 +87,7 @@ export const visualReferenceSchema = z.object({
 }).strict();
 
 const renderedPanelSchema = generatedStoryboardPanelSchema.extend({
+  panelId: z.string().min(1).max(100).optional(),
   imageApproved: z.boolean().optional(),
   imageSelected: z.boolean().optional(),
   imageReferenceIds: z.array(z.string()).optional(),
