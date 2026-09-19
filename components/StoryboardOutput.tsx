@@ -12,8 +12,12 @@ export function StoryboardOutput({
   onGeneratePanelImage,
   onGenerateAllImages,
   imagesDisabled = false,
+  imagesBusy,
+  onCancelImages,
 }: {
   imagesDisabled?: boolean;
+  imagesBusy: boolean;
+  onCancelImages: () => void;
   data: StoryboardPackage;
   metadata?: GenerationMetadata;
   onGeneratePanelImage: (panelNumber: number) => Promise<void>;
@@ -41,9 +45,6 @@ export function StoryboardOutput({
             data.tone,
             data.visualStyle,
             data.estimatedDuration,
-            metadata
-              ? `${metadata.provider}: ${metadata.model}`
-              : "mock engine",
             metadata?.fallbackUsed ? "mock fallback" : null,
           ]
             .filter(Boolean)
@@ -63,7 +64,7 @@ export function StoryboardOutput({
         <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink/70">
           {data.logline}
         </p>
-        {metadata ? <GenerationDetails metadata={metadata} /> : null}
+        {metadata ? <details className="mt-4 text-xs text-ink/60"><summary className="cursor-pointer">Generation details</summary><GenerationDetails metadata={metadata} /></details> : null}
       </header>
 
       <section>
@@ -79,14 +80,15 @@ export function StoryboardOutput({
             <button
               type="button"
               onClick={() => void onGenerateAllImages()}
-              disabled={imagesDisabled || data.storyboard.some(
+              disabled={imagesDisabled || data.storyboard.every(p => p.imageUrl || p.imageApproved) || data.storyboard.some(
                 (panel) => panel.imageStatus === "generating",
               )}
               className="mono border-[1.5px] border-ink bg-acid px-3 py-2 text-[10px] font-bold uppercase tracking-wider shadow-[3px_3px_0_#161813] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50"
               data-testid="generate-all-images"
             >
-              Generate missing images
+              {imagesBusy ? "Generating images…" : data.storyboard.every(p => p.imageUrl || p.imageApproved) ? "Images ready" : "Generate images"}
             </button>
+            {imagesBusy && <button type="button" onClick={onCancelImages} className="border border-ink px-3 py-2 text-xs">Cancel image generation</button>}
           </div>
         </div>
         <div className="grid gap-6 xl:grid-cols-2">
@@ -102,8 +104,9 @@ export function StoryboardOutput({
         </div>
       </section>
 
-      <section>
-        <SectionHeading index="02" title="Production bible" detail="Continuity" />
+      <details className="paper-card p-4">
+        <summary className="cursor-pointer font-bold">Story and production notes</summary>
+        <div className="mt-4">
         <div className="grid gap-5 md:grid-cols-2">
           <InfoCard title="Character">
             {data.characters.map((character) => (
@@ -136,7 +139,8 @@ export function StoryboardOutput({
             <NoteList notes={data.productionNotes} />
           </InfoCard>
         </div>
-      </section>
+        </div>
+      </details>
     </div>
   );
 }
@@ -244,7 +248,9 @@ function PanelCard({
           <Detail label="Sound">{panel.dialogueOrNarration}</Detail>
         </dl>
 
-        <div className="mt-5 border-l-4 border-acid bg-ink p-4 text-paper">
+        <details className="mt-5 border-t border-ink/15 pt-3">
+          <summary className="cursor-pointer text-xs text-ink/60">Image prompt</summary>
+          <div className="mt-3 bg-ink p-4 text-paper">
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="mono text-[10px] uppercase tracking-widest text-acid">
               {panel.imageGenerationPrompt ? "Rendered image prompt" : "Draft image prompt"}
@@ -265,7 +271,8 @@ function PanelCard({
             Avoid:{" "}
             {panel.imageGenerationNegativePrompt ?? panel.negativePrompt}
           </p>
-        </div>
+          </div>
+        </details>
 
         {panel.sound && <p className="mt-4 text-sm"><strong>Sound:</strong> {panel.sound}</p>}
         <p className="mt-4 text-xs leading-relaxed text-ink/55">
@@ -296,10 +303,10 @@ function PanelImage({
       data-testid={`panel-image-${panel.panelNumber}`}
       aria-busy={generating}
     >
-      {panel.imageNeedsReview && <p role="status" className="bg-acid px-3 py-2 text-sm">Needs review · rendered with visual bible v{panel.imageBibleVersion ?? "unknown"}</p>}
+      {panel.imageNeedsReview && <p role="status" className="bg-acid px-3 py-2 text-sm">Direction changed · regenerate to update this image</p>}
       {failed && <p role="alert" className="p-2 text-rust">{panel.imageError}</p>}
-      {generating && <p role="status" className="p-2">Rendering replacement; previous image retained.</p>}
-      {panel.imageApproved && <p className="p-2">Approved · locked</p>}
+      {generating && <p role="status" className="p-2">{complete ? "Generating a new image…" : "Generating image…"}</p>}
+      {panel.imageApproved && <p className="p-2">Image locked</p>}
       <div className="relative aspect-video">
         {complete ? (
           // Provider domains are dynamic and Replicate URLs are temporary.
@@ -330,7 +337,7 @@ function PanelImage({
         <div className="min-w-0">
           <p className="mono text-[9px] uppercase tracking-wider text-ink/50">
             {complete
-              ? `${panel.imageProvider} / ${panel.imageModel}`
+              ? `${panel.imageWidth ?? 1024} × ${panel.imageHeight ?? 576}`
               : failed
                 ? panel.imageError
                 : "1024 x 576 / 16:9"}
@@ -383,28 +390,6 @@ function Detail({
         {label}
       </dt>
       <dd className="leading-relaxed text-ink/75">{children}</dd>
-    </div>
-  );
-}
-
-function SectionHeading({
-  index,
-  title,
-  detail,
-}: {
-  index: string;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <div className="mb-5 flex items-end justify-between border-b-[1.5px] border-ink pb-3">
-      <div className="flex items-baseline gap-3">
-        <span className="mono text-xs text-rust">{index}</span>
-        <h2 className="display text-4xl">{title}</h2>
-      </div>
-      <span className="mono text-[10px] uppercase tracking-wider text-ink/50">
-        {detail}
-      </span>
     </div>
   );
 }

@@ -7,17 +7,15 @@ import { ContinuityChecklist } from "@/components/ContinuityChecklist";
 import { VersionComparison } from "@/components/VersionComparison";
 import { captureVersion, inputCondition, MAX_VERSIONS, type StoryboardVersion } from "@/lib/versions";
 import { SequencePlayback } from "@/components/SequencePlayback";
-import { AutosaveControls } from "@/components/AutosaveControls";
-import type { Workspace } from "@/lib/workspace";
 import { TreatmentEditor } from "@/components/TreatmentEditor";
-import { ProjectControls } from "@/components/ProjectControls";
+import { PdfExport } from "@/components/PdfExport";
 import { pendingPanels, replacePanelImage } from "@/lib/panelRevision";
 import { PanelRevisionControls } from "@/components/PanelRevisionControls";
 import { relevantReferences } from "@/lib/image-generation/references";
 import { ContinuityEditor } from "@/components/ContinuityEditor";
 import { ReferenceFrameReview } from "@/components/ReferenceFrameReview";
 import { VisualBibleReview } from "@/components/VisualBibleReview";
-import { reviseVisualBible } from "@/lib/visualBible";
+import { createVisualBible, reviseVisualBible } from "@/lib/visualBible";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { GenerationStatus } from "@/components/GenerationStatus";
@@ -34,6 +32,7 @@ import type {
   StoryboardInput,
   PanelImageGenerationResponse,
   StoryboardPackage,
+  VisualReference,
 } from "@/types/storyboard";
 
 export default function Home() {
@@ -48,7 +47,6 @@ export default function Home() {
     return () => controller.abort();
   }, []);
   const [versions, setVersions] = useState<StoryboardVersion[]>([]);
-  const [projectId, setProjectId] = useState<string | null>(null);
   const [input, setInput] = useState<StoryboardInput>(DEFAULT_INPUT);
   const [projectInput, setProjectInput] = useState<StoryboardInput | null>(null);
   const [storyboard, setStoryboard] = useState<StoryboardPackage | null>(null);
@@ -80,15 +78,6 @@ export default function Home() {
     new Map<number, AbortController>(),
   );
 
-  const workspace = useMemo<Workspace>(() => ({ input, projectInput, storyboard, metadata: generationMetadata, projectId, visualSummary, versions, references: references.map(({ id, blob, purpose }) => ({ id, blob, purpose })) }), [input, projectInput, storyboard, generationMetadata, projectId, visualSummary, versions, references]);
-  function restoreWorkspace(saved: Workspace) {
-    setOutputRevision(value => value + 1);
-    setVersions(saved.versions); setInput(saved.input); setProjectInput(saved.projectInput); setStoryboard(saved.storyboard); setGenerationMetadata(saved.metadata); setProjectId(saved.projectId); setVisualSummary(saved.visualSummary);
-    references.forEach(r => URL.revokeObjectURL(r.previewUrl));
-    setReferences(saved.references.map(r => ({ ...r, previewUrl: URL.createObjectURL(r.blob) })));
-    setRequestedPanelCount(saved.storyboard?.storyboard.length ?? saved.input.panelCount);
-  }
-
   const evaluation = useMemo(
     () =>
       storyboard
@@ -98,8 +87,7 @@ export default function Home() {
   );
 
   async function generate() {
-    if (storyboard && versions.length >= MAX_VERSIONS) { setError("Export or delete a version before generating again; the snapshot limit is 50."); return; }
-    if (storyboard && !window.confirm("Generate a new storyboard? The current output will be preserved as a comparison version.")) return;
+    if (storyboard && versions.length >= MAX_VERSIONS) { setError("Delete a version before generating again; the snapshot limit is 50."); return; }
     setLoading(true);
     setError("");
     setErrorDetails([]);
@@ -158,7 +146,6 @@ export default function Home() {
       setOutputRevision(value => value + 1);
       setStoryboard(data.storyboard);
       setProjectInput({ ...input, visualReferenceSummary: visualSummary.trim() || undefined });
-      setProjectId(crypto.randomUUID());
       setGenerationMetadata(data.metadata);
       setRequestedPanelCount(input.panelCount);
       setStatusMessage(
@@ -187,15 +174,27 @@ export default function Home() {
     generationController.current?.abort();
   }
 
-  async function generatePanelImage(panelNumber: number, referenceFrame = false, sameSeed = false) {
-    if (!storyboard?.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version) return;
-    if (!referenceFrame && !storyboard.visualReferences?.some(r => r.purpose === "style" && r.approved)) return;
-    const panel = storyboard.storyboard.find(
+  function imageBoard(source: StoryboardPackage): StoryboardPackage {
+    const bible = source.visualBible ?? createVisualBible(source, projectInput ?? input);
+    // Rendering uses the current direction. The version records exactly what was used.
+    return { ...source, visualBible: { ...bible, approvedVersion: bible.version } };
+  }
+
+  function cancelImages() {
+    batchCancelled.current = true;
+    batchPause.current?.abort();
+    imageGenerationControllers.current.forEach(controller => controller.abort());
+  }
+
+  async function generatePanelImage(panelNumber: number, referenceFrame = false, sameSeed = false, source = storyboard): Promise<VisualReference | undefined> {
+    if (!source) return;
+    const renderBoard = imageBoard(source);
+    const panel = renderBoard.storyboard.find(
       (item) => item.panelNumber === panelNumber,
     );
     if (!panel || panel.imageApproved || imageGenerationControllers.current.has(panelNumber)) return;
 
-    imageGenerationControllers.current.get(panelNumber)?.abort();
+    setStoryboard(current => current ? { ...current, visualBible: renderBoard.visualBible } : current);
     const controller = new AbortController();
     imageGenerationControllers.current.set(panelNumber, controller);
     updatePanelImage(panelNumber, {
@@ -211,8 +210,8 @@ export default function Home() {
         body: JSON.stringify({
           panel: generatedStoryboardPanelSchema.strip().parse(panel),
           seed: sameSeed ? panel.imageSeed : undefined,
-          references: referenceFrame ? [] : relevantReferences(storyboard, panel),
-          imageContext: createImageContext(storyboard),
+          references: referenceFrame ? [] : relevantReferences(renderBoard, panel),
+          imageContext: createImageContext(renderBoard),
         }),
         signal: controller.signal,
       });
@@ -227,8 +226,14 @@ export default function Home() {
       }
 
       if (controller.signal.aborted || imageGenerationControllers.current.get(panelNumber) !== controller) return;
-      if (referenceFrame) {
-        setStoryboard(current => current ? { ...current, visualReferences: [...(current.visualReferences ?? []), { id: crypto.randomUUID(), imageUrl: result.imageUrl, purpose: "style", approved: false, version: (current.visualReferences?.length ?? 0) + 1 }] } : current);
+      let reference: VisualReference | undefined;
+      if (referenceFrame || !renderBoard.visualReferences?.some(r => r.purpose === "style" && r.approved)) {
+        reference = { id: crypto.randomUUID(), imageUrl: result.imageUrl, purpose: "style", approved: true, version: (renderBoard.visualReferences?.length ?? 0) + 1 };
+        const activeReference = reference;
+        setStoryboard(current => current ? { ...current, visualReferences: [
+          ...(current.visualReferences ?? []).map(r => r.purpose === "style" ? { ...r, approved: false } : r),
+          activeReference,
+        ] } : current);
       }
       updatePanelImage(panelNumber, {
         imageReferenceIds: result.imageReferenceIds,
@@ -250,6 +255,7 @@ export default function Home() {
         imageGenerationDurationMs: result.imageGenerationDurationMs,
       }, true);
       setStatusMessage(`Image for panel ${panelNumber} generated successfully.`);
+      return reference;
     } catch (caught) {
       const message = controller.signal.aborted
         ? "Image generation was cancelled."
@@ -269,8 +275,8 @@ export default function Home() {
   }
 
   async function generateAllPanelImages(mode: "missing" | "failed" | "selected" = "missing") {
-    if (!storyboard?.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version) return;
-    if (!storyboard.visualReferences?.some(r => r.purpose === "style" && r.approved)) return;
+    if (!storyboard || batchGenerating || imageGenerationControllers.current.size) return;
+    let renderBoard = imageBoard(storyboard);
     const pending = pendingPanels(storyboard.storyboard, mode);
     batchCancelled.current = false;
     const pauseController = new AbortController();
@@ -283,11 +289,11 @@ export default function Home() {
     try {
       for (let index = 0; index < pending.length && !batchCancelled.current; index += 1) {
         const started = Date.now();
-        await Promise.all(
-          pending
-            .slice(index, index + 1)
-            .map((panel) => generatePanelImage(panel.panelNumber)),
-        );
+        const reference = await generatePanelImage(pending[index].panelNumber, false, false, renderBoard);
+        if (reference) {
+          // Use the same reference ID in persisted state and subsequent requests.
+          renderBoard = { ...renderBoard, visualReferences: [...(renderBoard.visualReferences ?? []).map(r => r.purpose === "style" ? { ...r, approved: false } : r), reference] };
+        }
         // Pace hosted batches for low-credit provider limits; mock runs stay instant.
         if (index + 1 < pending.length && !batchCancelled.current && (estimateConfig ? estimateConfig.provider === "replicate" : storyboard.visualReferences?.some(r => r.approved && r.imageUrl.startsWith("data:image/")))) {
           await new Promise<void>(resolve => { const done = () => { clearTimeout(timer); pauseController.signal.removeEventListener("abort", done); resolve(); }; const timer = window.setTimeout(done, Math.max(0, 12_000 - (Date.now() - started))); pauseController.signal.addEventListener("abort", done, { once: true }); });
@@ -343,27 +349,10 @@ export default function Home() {
         </div>
       </nav>
 
-      <header className="border-b-[1.5px] border-ink bg-paper/75 px-5 py-12 sm:px-8 sm:py-16">
+      <header className="border-b-[1.5px] border-ink bg-paper/75 px-5 py-7 sm:px-8">
         <div className="mx-auto max-w-[1500px]">
-          <p className="mono mb-4 text-xs uppercase tracking-[0.2em] text-rust">
-            Visual pre-production for short films
-          </p>
-          {/* <h1 className="display max-w-5xl text-6xl leading-[0.88] tracking-tight sm:text-8xl lg:text-[7.5rem]">
-            Turn a rough scene into a{" "}
-            <span className="italic text-rust">shootable</span> sequence.
-          </h1> */}
-          <h1 className="display max-w-5xl text-6xl leading-[0.88] tracking-tight sm:text-8xl lg:text-[7.5rem]">
-            Final project
-
-          </h1>
-          {/* <div className="mt-8 flex max-w-3xl items-start gap-4">
-            <span className="mt-2 block h-[1.5px] w-12 shrink-0 bg-ink" />
-            <p className="text-sm leading-relaxed text-ink/65 sm:text-base">
-              Shape story beats, camera direction, visual prompts, continuity,
-              and production notes using local Ollama with a deterministic mock
-              fallback.
-            </p>
-          </div> */}
+          <h1 className="display text-4xl sm:text-5xl">Your next scene, frame by frame.</h1>
+          <p className="mt-3 text-sm text-ink/65">Describe a scene. Build your storyboard. Bring the shots to life.</p>
         </div>
       </header>
 
@@ -414,8 +403,6 @@ export default function Home() {
           className="min-w-0 min-h-[70vh] p-5 sm:p-8 lg:p-10"
           aria-busy={loading}
         >
-          <AutosaveControls workspace={workspace} onRestore={restoreWorkspace} />
-          <ProjectControls versions={versions} metadata={generationMetadata} id={projectId} onIdChange={setProjectId} input={projectInput ?? input} storyboard={storyboard} busy={loading || batchGenerating || Boolean(storyboard?.storyboard.some(p => p.imageStatus === "generating"))} onOpen={project => { setOutputRevision(value => value + 1); setVersions(project.versions ?? []); setProjectId(project.id); setVisualSummary(project.input.visualReferenceSummary ?? ""); references.forEach(r => URL.revokeObjectURL(r.previewUrl)); setReferences([]); setStoryboard(project.storyboard); setInput(project.input); setProjectInput(project.input); setRequestedPanelCount(project.storyboard.storyboard.length); setGenerationMetadata(project.metadata ?? null); setError(""); setStatusMessage(`Opened ${project.name}.`); }} />
           {loading ? (
             <GenerationStatus
               message={progressMessage}
@@ -425,35 +412,47 @@ export default function Home() {
             />
           ) : storyboard && evaluation ? (
             <div className="space-y-8">
+              <StoryboardOutput
+                imagesDisabled={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}
+                onCancelImages={cancelImages}
+                imagesBusy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}
+                data={storyboard}
+                metadata={generationMetadata ?? undefined}
+                onGeneratePanelImage={async panelNumber => { await generatePanelImage(panelNumber); }}
+                onGenerateAllImages={generateAllPanelImages}
+              />
+              <details className="paper-card p-4"><summary className="cursor-pointer font-bold">Edit storyboard</summary><div className="mt-4 space-y-4">
+              <TreatmentEditor key={outputRevision} data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
+              <PanelRevisionControls data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={board => { setStoryboard(board); setRequestedPanelCount(board.storyboard.length); }} onGenerate={(n, sameSeed) => void generatePanelImage(n, false, sameSeed)} onBatch={mode => void generateAllPanelImages(mode)}  onReset={() => { if (window.confirm("Discard the current scene? Export a PDF first to keep a copy.")) { setStoryboard(null); setGenerationMetadata(null); setProjectInput(null); setVersions([]); } }} />
+              </div></details>
+              <details className="paper-card p-4"><summary className="cursor-pointer font-bold">Style and references</summary><div className="mt-4 space-y-4">
               {storyboard.visualBible && <VisualBibleReview
                 key={`${outputRevision}-${storyboard.visualBible.version}-${storyboard.visualBible.approvedVersion}`}
                 bible={storyboard.visualBible}
                 busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}
                 onSave={draft => { try { setStoryboard(reviseVisualBible(storyboard, draft)); } catch (error) { setError(error instanceof Error ? error.message : "Invalid visual bible"); } }}
-                onApprove={() => setStoryboard({ ...storyboard, visualBible: { ...storyboard.visualBible!, approvedVersion: storyboard.visualBible!.version } })}
               />}
-              <ReferenceFrameReview onUseUploads={references.length ? () => { void Promise.all(references.map(async reference => ({ id: reference.id, purpose: "style" as const, imageUrl: await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(reference.blob); }), approved: false, version: 1 }))).then(added => setStoryboard(current => current ? { ...current, visualReferences: [...(current.visualReferences ?? []).filter(r => !added.some(a => a.id === r.id)), ...added] } : current)).catch(() => setError("Could not prepare uploaded references.")); } : undefined} data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onGenerate={() => void generatePanelImage(1, true)} onChange={visualReferences => setStoryboard({ ...storyboard, visualReferences, storyboard: storyboard.storyboard.map(p => ({ ...p, imageNeedsReview: Boolean(p.imageUrl) })) })} />
-              <TreatmentEditor key={outputRevision} data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
+              <ReferenceFrameReview onUseUploads={references.length ? () => { void Promise.all(references.map(async reference => ({ id: reference.id, purpose: "style" as const, imageUrl: await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(reference.blob); }), approved: true, version: 1 }))).then(added => setStoryboard(current => current ? { ...current, visualReferences: [...(current.visualReferences ?? []).filter(r => !added.some(a => a.id === r.id)), ...added] } : current)).catch(() => setError("Could not prepare uploaded references.")); } : undefined} data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onGenerate={() => void generatePanelImage(1, true)} onChange={visualReferences => setStoryboard({ ...storyboard, visualReferences, storyboard: storyboard.storyboard.map(p => ({ ...p, imageNeedsReview: Boolean(p.imageUrl) })) })} />
               <ContinuityEditor data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
-              <GenerationEstimates data={storyboard} config={estimateConfig} metadata={generationMetadata} />
-              <PanelRevisionControls data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={board => { setStoryboard(board); setRequestedPanelCount(board.storyboard.length); }} onGenerate={(n, sameSeed) => void generatePanelImage(n, false, sameSeed)} onBatch={mode => void generateAllPanelImages(mode)} onCancel={() => { batchCancelled.current = true; batchPause.current?.abort(); imageGenerationControllers.current.forEach(controller => controller.abort()); }} onReset={() => { if (window.confirm("Discard the current scene? Save or export first to keep it.")) { setStoryboard(null); setGenerationMetadata(null); setProjectId(null); setProjectInput(null); setVersions([]); } }} />
-              <ContinuityChecklist data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
+              </div></details>
+              <details className="paper-card p-4"><summary className="cursor-pointer font-bold">Preview sequence</summary><div className="mt-4 space-y-4">
+              <SequencePlayback data={storyboard} target={(projectInput ?? input).duration} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
+              </div></details>
+              <details className="paper-card p-4"><summary className="cursor-pointer font-bold">Versions</summary><div className="mt-4 space-y-4">
               <VersionComparison input={projectInput ?? input} data={storyboard} metadata={generationMetadata} versions={versions} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setVersions} onRestore={version => {
                 setVersions([...versions, captureVersion(projectInput ?? input, storyboard, generationMetadata, `Before restore ${versions.length + 1}`, inputCondition(projectInput ?? input))]);
                 setOutputRevision(value => value + 1);
                 setStoryboard(structuredClone(version.storyboard)); setInput(version.input); setProjectInput(version.input); setVisualSummary(version.input.visualReferenceSummary ?? ""); setGenerationMetadata(version.metadata); setRequestedPanelCount(version.storyboard.storyboard.length);
                 references.forEach(r => URL.revokeObjectURL(r.previewUrl)); setReferences([]);
               }} />
-              <SequencePlayback data={storyboard} target={(projectInput ?? input).duration} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
-              <StoryboardOutput
-                imagesDisabled={batchGenerating || !storyboard.visualReferences?.some(r => r.purpose === "style" && r.approved) || !storyboard.visualBible || storyboard.visualBible.approvedVersion !== storyboard.visualBible.version}
-                data={storyboard}
-                metadata={generationMetadata ?? undefined}
-                onGeneratePanelImage={generatePanelImage}
-                onGenerateAllImages={generateAllPanelImages}
-              />
+              </div></details>
+              <details className="paper-card p-4"><summary className="cursor-pointer font-bold">Technical details</summary><div className="mt-4 space-y-4">
+              <GenerationEstimates data={storyboard} config={estimateConfig} metadata={generationMetadata} />
+              <ContinuityChecklist data={storyboard} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} onChange={setStoryboard} />
               <EvaluationPanel result={evaluation} />
               <JsonPreview data={storyboard} />
+              </div></details>
+              <PdfExport key={outputRevision} storyboard={storyboard} duration={(projectInput ?? input).duration} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} />
             </div>
           ) : (
             <EmptyState />
@@ -464,7 +463,7 @@ export default function Home() {
       <footer className="border-t-[1.5px] border-ink bg-ink px-5 py-5 text-paper sm:px-8">
         <div className="mono mx-auto flex max-w-[1500px] flex-wrap justify-between gap-3 text-[10px] uppercase tracking-wider text-paper/55">
           <span>Framewright / Storyboard Orchestrator</span>
-          <span>Reference-guided images • Rule-based evaluation</span>
+          <span>From scene idea to storyboard</span>
         </div>
       </footer>
     </main>

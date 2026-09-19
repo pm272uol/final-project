@@ -23,7 +23,7 @@ export function VersionComparison({ input, data, metadata, versions, busy, onCha
         try { const version = captureVersion(input, data, metadata, label.trim() || `Version ${versions.length + 1}`, condition.trim() || inputCondition(input)); onChange([...versions, version]); setRight(version.id); setLabel(""); setCondition(""); setError(""); }
         catch { setError("This version could not be captured. Check the scene input and storyboard fields."); }
       }}>Capture version</button>
-      <p className="text-xs">{versions.length} / {MAX_VERSIONS} snapshots. Snapshots include images and are saved with the project and recovery workspace.</p>
+      <p className="text-xs">{versions.length} / {MAX_VERSIONS} snapshots. Snapshots include images and remain available until you close or reload this page.</p>
     </fieldset>
     <div className="flex flex-wrap gap-3">
       <label>Left version<select aria-label="Left version" value={a.id} onChange={e => setLeft(e.target.value)}>{choices.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}</select></label>

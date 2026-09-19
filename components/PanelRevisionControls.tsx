@@ -7,20 +7,18 @@ import { generatedStoryboardPanelSchema } from "@/lib/storyboardSchema";
 import { shotPromptIssues } from "@/lib/image-generation/promptBuilder";
 import { restorePanelImage } from "@/lib/panelRevision";
 
-export function PanelRevisionControls({ data, busy, onChange, onGenerate, onBatch, onCancel, onReset }: {
+export function PanelRevisionControls({ data, busy, onChange, onGenerate, onBatch, onReset }: {
   data: StoryboardPackage; busy: boolean; onChange: (data: StoryboardPackage) => void; onGenerate: (n: number, sameSeed: boolean) => void;
-  onBatch: (mode: "missing" | "failed" | "selected") => void; onCancel: () => void; onReset: () => void;
+  onBatch: (mode: "missing" | "failed" | "selected") => void; onReset: () => void;
 }) {
-  const ready = data.visualBible?.approvedVersion === data.visualBible?.version && data.visualReferences?.some(r => r.purpose === "style" && r.approved);
   const update = (panel: StoryboardPanel) => onChange({ ...data, storyboard: data.storyboard.map(p => p.panelNumber === panel.panelNumber ? panel : p) });
   return <section className="paper-card p-5 space-y-3" aria-label="Panel revisions">
     <div className="flex flex-wrap gap-3">
-      <button disabled={busy || !ready} className="border p-2" onClick={() => onBatch("failed")}>Retry failed images</button>
-      <button disabled={busy || !ready || !data.storyboard.some(p => p.imageSelected && !p.imageApproved)} className="border p-2" onClick={() => onBatch("selected")}>Regenerate selected panels</button>
-      <button disabled={!busy} className="border p-2" onClick={onCancel}>Cancel image generation</button>
+      <button disabled={busy} className="border p-2" onClick={() => onBatch("failed")}>Retry failed images</button>
+      <button disabled={busy || !data.storyboard.some(p => p.imageSelected && !p.imageApproved)} className="border p-2" onClick={() => onBatch("selected")}>Regenerate selected panels</button>
       <button disabled={busy} className="border p-2" onClick={onReset}>New scene</button>
     </div>
-    {data.storyboard.map((panel, index) => <details key={panel.panelId ?? panel.panelNumber} className="border p-3"><summary>Edit and review panel {panel.panelNumber}</summary>
+    {data.storyboard.map((panel, index) => <details key={panel.panelId ?? panel.panelNumber} className="border p-3"><summary>Edit panel {panel.panelNumber}</summary>
       <fieldset disabled={busy} className="space-y-3 mt-3">
         <div className="flex flex-wrap gap-2" aria-label={`Sequence panel ${panel.panelNumber}`}>
           <button className="border p-2" disabled={index === 0} onClick={() => onChange(sequencePanels(data, index, "up"))}>Move panel {panel.panelNumber} up</button>
@@ -29,12 +27,12 @@ export function PanelRevisionControls({ data, busy, onChange, onGenerate, onBatc
           <button className="border p-2" disabled={data.storyboard.length >= MAX_PANELS} onClick={() => onChange(sequencePanels(data, index, "duplicate"))}>Duplicate panel {panel.panelNumber}</button>
           <button className="border p-2" disabled={data.storyboard.length === 1} onClick={() => { if (window.confirm(`Delete panel ${panel.panelNumber} and its image history?`)) onChange(sequencePanels(data, index, "delete")); }}>Delete panel {panel.panelNumber}</button>
         </div>
-        <label className="block"><input type="checkbox" disabled={!panel.imageUrl || (panel.imageNeedsReview && !panel.imageApproved)} checked={panel.imageApproved ?? false} onChange={e => update({ ...panel, imageApproved: e.target.checked })} />Approve and lock panel {panel.panelNumber}</label>
-        {panel.imageNeedsReview && <button className="border p-2" onClick={() => update({ ...panel, imageNeedsReview: false })}>Confirm image matches current direction</button>}
+        <label className="block"><input type="checkbox" disabled={!panel.imageUrl} checked={panel.imageApproved ?? false} onChange={e => update({ ...panel, imageApproved: e.target.checked })} />Lock image for panel {panel.panelNumber}</label>
+        {panel.imageNeedsReview && <button className="border p-2" onClick={() => update({ ...panel, imageNeedsReview: false })}>Keep current image</button>}
         <fieldset disabled={panel.imageApproved} className="space-y-3">
           <label className="block"><input type="checkbox" checked={panel.imageSelected ?? false} onChange={e => update({ ...panel, imageSelected: e.target.checked })} />Select panel {panel.panelNumber} for regeneration</label>
           <ShotEditor key={`${panel.panelNumber}-${panel.imageGeneratedAt}`} panel={panel} data={data} onSave={update} />
-          <button disabled={!ready || panel.imageSeed === undefined} className="border p-2" onClick={() => onGenerate(panel.panelNumber, true)}>Retry panel {panel.panelNumber} with same seed</button>
+          <button disabled={panel.imageSeed === undefined} className="border p-2" onClick={() => onGenerate(panel.panelNumber, true)}>Retry panel {panel.panelNumber} with same seed</button>
           <p className="text-xs">Seed: {panel.imageSeed ?? "not generated"}. Same seed reuses current settings; it does not guarantee continuity.</p>
           <div className="flex flex-wrap gap-2">{panel.imageHistory?.map((image, index) => <div key={index} className="w-40">
             {/* eslint-disable-next-line @next/next/no-img-element */}

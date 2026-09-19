@@ -9,7 +9,7 @@ export function ContinuityEditor({ data, busy, onChange }: { data: StoryboardPac
   if (!bible) return null;
   return <details className="paper-card p-5"><summary className="cursor-pointer font-bold">Character and location continuity</summary>
     <fieldset disabled={busy} className="space-y-4 mt-4">
-      <p className="text-sm">Approved character sheets, locations and the style frame are sent as separate reference images. Klein may still blend identities or introduce extra subjects; inspect every frame. At most five relevant references can be sent per shot.</p>
+      <p className="text-sm">Active character sheets, locations and the style frame are sent as separate reference images. Klein may still blend identities or introduce extra subjects; inspect every frame. At most five relevant references can be sent per shot.</p>
       {([ ...bible.characters.map(c => ({ ...c, purpose: "character" as const })), ...bible.locations.map(l => ({ ...l, purpose: "location" as const })) ]).map(entity => <div key={entity.id} className="border p-3">
         <label>{entity.name} reference<input type="file" accept="image/png,image/jpeg,image/webp" onChange={async event => {
           const file = event.target.files?.[0]; if (!file) return;
@@ -21,7 +21,7 @@ export function ContinuityEditor({ data, busy, onChange }: { data: StoryboardPac
         {data.visualReferences?.filter(r => r.entityId === entity.id).map(ref => <div key={ref.id}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={ref.imageUrl} alt={`${entity.name} reference`} className="w-40" />
-          <label><input type="checkbox" checked={ref.approved} onChange={e => onChange({ ...data, visualReferences: data.visualReferences?.map(r => r.id === ref.id ? { ...r, approved: e.target.checked } : r), storyboard: data.storyboard.map(p => ({ ...p, imageNeedsReview: Boolean(p.imageUrl) })) })} />Approve {entity.name} reference for image generation (sent to hosted provider)</label>
+          <label><input type="checkbox" checked={ref.approved} onChange={e => onChange({ ...data, visualReferences: data.visualReferences?.map(r => r.id === ref.id ? { ...r, approved: e.target.checked } : r), storyboard: data.storyboard.map(p => ({ ...p, imageNeedsReview: Boolean(p.imageUrl) })) })} />Use {entity.name} reference for image generation</label>
         </div>)}
       </div>)}
       {data.storyboard.map(original => {

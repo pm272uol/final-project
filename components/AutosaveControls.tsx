@@ -29,13 +29,12 @@ export function AutosaveControls({ workspace, onRestore }: { workspace: Workspac
     window.addEventListener("beforeunload", leave); document.addEventListener("visibilitychange", hide);
     return () => { clearTimeout(timer); window.removeEventListener("beforeunload", leave); document.removeEventListener("visibilitychange", hide); };
   }, [workspace, loaded, recovery]);
-  return <section className="paper-card p-4 my-3 space-y-2" aria-label="Autosave and recovery">
+  return <section className="my-3 space-y-2 text-xs text-ink/60" aria-label="Autosave and recovery">
     <p role="status">{recovery ? `Recovery available from ${new Date(recovery.savedAt).toLocaleString()}. Choose an option to resume autosave.` : status}</p>
     {recovery && <div className="flex flex-wrap gap-2">
       <button className="border p-2" onClick={() => { onRestore(recovery.workspace); setRecovery(null); }}>Restore autosaved workspace</button>
       <button className="border p-2" onClick={() => { if (window.confirm("Discard the autosaved workspace?")) setRecovery(null); }}>Discard recovery</button>
     </div>}
     {failed && <button className="border p-2" onClick={() => { if (window.confirm("Clear recovery and retry autosave? Export a backup first.")) void writeRecovery(null).then(() => { setLoaded(true); setRecovery(null); setFailed(false); setStatus("Recovery cleared. Edit to resume autosave."); }).catch(() => setStatus("Browser storage is unavailable. Export a project backup.")); }}>Clear recovery and retry</button>}
-    <p className="text-xs">Automatically saves the scene brief, references and applied storyboard edits in this browser. Use the editor’s Save buttons to apply text drafts. One recovery slot is shared across tabs; export JSON for a backup.</p>
   </section>;
 }

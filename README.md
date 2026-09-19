@@ -22,9 +22,9 @@ A deterministic mock provider remains available for development.
 
 Panel images use a deterministic local mock by default. Hosted rendering uses the
 low-cost, locally runnable **FLUX.2 Klein 4B** with approved visual references.
-Projects, embedded images, approvals and alternatives can be saved in this browser
-and exported as portable JSON. Authentication and multi-user storage remain outside
-this prototype.
+Export the generated storyboard as a production PDF. The workspace no longer
+offers named project saves, autosave, or file import/export menus. Authentication
+and multi-user storage remain outside this prototype.
 
 See [docs/ollama-integration.md](docs/ollama-integration.md) for configuration,
 fallback behavior, and integration-test instructions.
@@ -51,12 +51,15 @@ Restart the development server after changing `.env.local`. Provider calls run
 only from `POST /api/generate-panel-image`; the token is never sent to the
 browser.
 
-Generate a storyboard → approve the visual bible → generate/upload and approve a
-reference frame → optionally approve character/location references → generate
-missing panels → review, edit and lock frames → save/export. Ordinary batches skip
-completed or locked images; selected regeneration preserves image history. Use
-**Browse saved projects** to reopen a named save, restore the autosaved workspace
-after a reload, or import exported JSON.
+Generate a storyboard → **Generate images** → **Export production PDF**. The first rendered
+frame automatically guides the remaining shots. Rendering uses the current saved
+visual style without separate approval steps. Completed and locked images are
+preserved; use **Regenerate** on a shot to create an alternative.
+
+The storyboard appears first. **Edit storyboard**, **Style and references**,
+**Preview sequence**, **Versions**, and **Technical details** are optional sections.
+Scene settings stay visible on the left; **Add visual references** starts collapsed.
+PDF export appears at the bottom only after a storyboard has been generated.
 
 Klein supports up to five relevant reference images. The app fixes 0.5 MP output,
 shrinks reference inputs, and paces hosted batches. Published model pricing starts
@@ -66,9 +69,9 @@ fallback is used. [Model choice, local execution and limitations](docs/reference
 ## Creative workflow tools
 
 Reorder, insert, duplicate and delete shots; edit the complete treatment and panel
-text; assign shot durations and preview sequence playback. Autosave protects applied
-edits and offers recovery after reload. Capture independent storyboard versions to
-compare revisions or input conditions, and export an A4 production PDF.
+text; assign shot durations and preview sequence playback. Capture independent
+storyboard versions to compare revisions or input conditions within the current
+page session, and export an A4 production PDF. Reloading clears the current workspace.
 
 A continuity checklist records human review notes and flags possible text-level
 mismatches. Generation estimates compare one-shot and batch scopes using matching
@@ -250,20 +253,16 @@ timeouts, and metrics.
 
 ### Shared visual bible
 
-After storyboard generation, review and edit the shared visual bible, then select
-**Approve visual direction** to enable individual and batch image generation.
-The app creates version 1 from the storyboard descriptions and preserves the
-selected style and reference summary. Medium, palette, linework, texture,
-rendering, lighting rules, and stable character/location definitions are editable.
-Unspecified details start with consistency instructions and can be refined during
-review; they are not a second model-generated character design.
+The app creates a shared visual style from the storyboard descriptions. Open
+**Style and references** to adjust the palette, medium, lighting, characters, or
+locations. **Save style** applies those changes to the next render. Existing images
+stay in place with a direction-changed note, and can be regenerated individually.
 
-Saving edits creates a new unapproved version and marks existing images as needing
-review without deleting them. Rendering records the approved bible version and
-exact prompts. Bible editing and new storyboard generation are disabled during
-image generation, including between batch requests. The image API requires an
-approved bible. Older storyboard packages can still pass the package schema, but
-cannot render images without one.
+The image request records the current style version as the accepted direction;
+there is no separate approval button. The API continues to validate that version
+and the selected references. Older packages without a visual bible receive one
+from their saved scene settings when rendered. Editing is disabled during image
+generation, including pauses between batch requests.
 
 Rendering now uses structured action, framing, visible character/location IDs,
 and visible props with the approved bible. Free-form draft prompts cannot override
@@ -272,7 +271,7 @@ where supplied, clothing/accessories for that shot; active changes must be repea
 in subsequent shots. Exact rendered prompts remain in the raw JSON.
 
 This is a text-based continuity workflow with visual reference conditioning,
-durable browser-local storage, and explicit image approval.
+session-local version history, and optional image locks.
 Shared prompts do not guarantee visual consistency in generated images.
 
 ## English voice notes

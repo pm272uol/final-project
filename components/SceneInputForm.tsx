@@ -70,73 +70,23 @@ export function SceneInputForm({
         <VoiceNotePanel disabled={loading} remainingChars={1200 - input.sceneIdea.trim().length - (input.sceneIdea.trim() ? 2 : 0)} onAppend={(text) => update("sceneIdea", [input.sceneIdea.trim(), text].filter(Boolean).join("\n\n"))} />
       </div>
 
+      <div className="grid grid-cols-2 gap-4">
+        <SelectField label="Visual style" value={input.visualStyle} options={VISUAL_STYLES} onChange={value => update("visualStyle", value as StoryboardInput["visualStyle"])} />
+        <SelectField label="Panels" value={String(input.panelCount)} options={PANEL_COUNTS.map(String)} onChange={value => update("panelCount", Number(value) as StoryboardInput["panelCount"])} />
+      </div>
       <fieldset>
-        <legend className="label">02 / Creative constraints</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SelectField
-            label="Genre"
-            value={input.genre}
-            options={GENRES}
-            onChange={(value) =>
-              update("genre", value as StoryboardInput["genre"])
-            }
-          />
-          <SelectField
-            label="Visual style"
-            value={input.visualStyle}
-            options={VISUAL_STYLES}
-            onChange={(value) =>
-              update("visualStyle", value as StoryboardInput["visualStyle"])
-            }
-          />
-          <SelectField
-            label="Duration"
-            value={input.duration}
-            options={DURATIONS}
-            onChange={(value) =>
-              update("duration", value as StoryboardInput["duration"])
-            }
-          />
-          <SelectField
-            label="Tone"
-            value={input.tone}
-            options={TONES}
-            onChange={(value) =>
-              update("tone", value as StoryboardInput["tone"])
-            }
-          />
-          <SelectField
-            label="Panels"
-            value={String(input.panelCount)}
-            options={PANEL_COUNTS.map(String)}
-            onChange={(value) =>
-              update(
-                "panelCount",
-                Number(value) as StoryboardInput["panelCount"],
-              )
-            }
-          />
-          <SelectField
-            label="Deliverable"
-            value={input.targetFormat}
-            options={TARGET_FORMATS}
-            onChange={(value) =>
-              update(
-                "targetFormat",
-                value as StoryboardInput["targetFormat"],
-              )
-            }
-          />
+        <legend className="text-sm font-bold">Scene settings</legend>
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <SelectField label="Genre" value={input.genre} options={GENRES} onChange={value => update("genre", value as StoryboardInput["genre"])} />
+          <SelectField label="Duration" value={input.duration} options={DURATIONS} onChange={value => update("duration", value as StoryboardInput["duration"])} />
+          <SelectField label="Tone" value={input.tone} options={TONES} onChange={value => update("tone", value as StoryboardInput["tone"])} />
+          <SelectField label="Deliverable" value={input.targetFormat} options={TARGET_FORMATS} onChange={value => update("targetFormat", value as StoryboardInput["targetFormat"])} />
         </div>
       </fieldset>
-
-      <ReferenceImagePanel
-        references={references}
-        summary={visualSummary}
-        disabled={loading}
-        onReferencesChange={onReferencesChange}
-        onSummaryChange={onVisualSummaryChange}
-      />
+      <details>
+        <summary className="cursor-pointer text-sm font-bold">Add visual references (optional)</summary>
+        <div className="mt-4"><ReferenceImagePanel references={references} summary={visualSummary} disabled={loading} onReferencesChange={onReferencesChange} onSummaryChange={onVisualSummaryChange} /></div>
+      </details>
 
       <button
         type="submit"
@@ -156,7 +106,7 @@ export function SceneInputForm({
         <span className="font-bold">
           {loading
             ? "Generating storyboard..."
-            : "Generate storyboard prompts"}
+            : "Generate storyboard"}
         </span>
         <span
           aria-hidden="true"
