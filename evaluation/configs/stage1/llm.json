@@ -41,6 +41,14 @@
       "thinking": true
     },
     {
+      "id": "qwen35-9b",
+      "displayName": "Qwen 3.5 9B",
+      "model": "qwen3.5:9b",
+      "version": "6488c96fa5fa",
+      "execution": "local",
+      "thinking": true
+    },
+    {
       "id": "qwen3-14b",
       "displayName": "Qwen3 14B",
       "model": "qwen3:14b",

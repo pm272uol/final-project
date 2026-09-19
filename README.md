@@ -1,18 +1,61 @@
 # Framewright: Storyboard Orchestrator
 
-A mock-first Next.js prototype for short-film creators. Enter a rough scene idea
+A Next.js prototype for short-film creators with local and hosted AI backends. Enter a rough scene idea
 and creative constraints to generate a structured storyboard package with shot
 direction, concept-art prompts, continuity notes, production guidance, rendered
-panel images, raw JSON, and a rule-based quality evaluation.
+panel images, raw JSON, and a rule-based completeness evaluation.
+
+## Current technical choices
+
+These choices describe the current implementation; configured models are not a
+claim that final comparative model selection or human evaluation is complete.
+
+| Area | Choice and purpose |
+| --- | --- |
+| Application | Next.js 15.5.19 App Router, React 19, TypeScript, and Tailwind CSS 3. A single-page editing workspace calls server-side route handlers for inference. |
+| Text and vision | One shared provider/model configuration: local Ollama with `gemma4:e4b`, or Vercel AI Gateway with `google/gemma-4-26b-a4b-it`. Storyboard generation and reference-image analysis use the same adapter interface and server-side HTTP calls. |
+| Structured output | Zod 4 validates inputs, model JSON, and saved packages. Storyboard generation checks panel count and sequence and allows one correction attempt with the same model before returning invalid-output errors. |
+| Panel rendering | Deterministic mock images by default; hosted FLUX.2 Klein 4B on Replicate for reference-conditioned rendering. Sharp resizes reference inputs and processes image assets on the server. |
+| Voice notes | Whisper Large-v3-Turbo: local `mlx-whisper` through a Python worker on Apple Silicon, or hosted Groq transcription. English, completed-recording transcription with editable results. |
+| Workspace | Storyboards, image history, and versions live in the current page session. Project storage and autosave controls are not part of the workspace. No application database or account service is required. |
+| Exports and playback | A4 production PDFs using lazy-loaded jsPDF, available below the generated storyboard. Timed playback previews still images with text cues; audio synthesis is not implemented. |
+| Verification | Vitest for unit/API tests, Playwright with Chromium for browser workflows, ESLint, and TypeScript. Separate CLIs cover local model benchmarks and application-level local/hosted comparisons. |
+
+The pipeline combines a scene brief with reviewed reference-image summaries and
+voice transcripts, generates and validates storyboard JSON, builds a shared visual
+bible, then renders panels from structured shot details and selected references.
+Provider credentials and inference calls stay on the server; editing, project
+storage, playback, and exports run in the browser.
 
 ## Run locally
 
+Use Node.js 24+ and npm for the application and evaluation commands. For local
+text/vision inference, install Ollama and download the configured model:
+
 ```bash
 npm install
+ollama pull gemma4:e4b
+```
+
+For a fresh checkout, copy `.env.example` to `.env` (preserve any existing local
+configuration). The example selects local Ollama, mock panel images, and local
+transcription. Start Ollama with `ollama serve` if it is not already running, then:
+
+```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+To exercise storyboard and image workflows without model services, use:
+
+```bash
+LLM_PROVIDER= STORYBOARD_PROVIDER=mock IMAGE_PROVIDER=mock npm run dev
+```
+
+The empty `LLM_PROVIDER` lets the explicit mock setting take precedence over a
+value in an environment file. Voice transcription still requires the separate
+[local Python/FFmpeg setup or Groq configuration](docs/transcription.md).
 
 ## Prototype boundaries
 
@@ -20,11 +63,22 @@ This version supports local Ollama with `gemma4:e4b` and Vercel AI Gateway with
 `google/gemma-4-26b-a4b-it`. See [LLM Backends](#llm-backends) for configuration.
 A deterministic mock provider remains available for development.
 
-Panel images use a deterministic local mock by default. Hosted rendering uses the
-low-cost, locally runnable **FLUX.2 Klein 4B** with approved visual references.
+Panel images use a deterministic local mock by default. Hosted rendering uses
+**FLUX.2 Klein 4B** with the saved visual style and selected references. A local
+image-inference backend is not integrated or validated on the target Mac; the
+selected model has downloadable weights for separate local execution.
 Export the generated storyboard as a production PDF. The workspace no longer
 offers named project saves, autosave, or file import/export menus. Authentication
 and multi-user storage remain outside this prototype.
+
+Local voice transcription needs a Node server on Apple Silicon with Python,
+FFmpeg, and a pre-downloaded MLX model. That path cannot run as a portable
+serverless function. Selecting Vercel AI Gateway changes the inference backend;
+it does not deploy the application to Vercel.
+
+The in-app evaluator checks package completeness with an 85% pass threshold.
+It does not establish creative quality, visual consistency, or production usefulness;
+those require human assessment and separate experiments.
 
 See [docs/ollama-integration.md](docs/ollama-integration.md) for configuration,
 fallback behavior, and integration-test instructions.
@@ -61,10 +115,17 @@ The storyboard appears first. **Edit storyboard**, **Style and references**,
 Scene settings stay visible on the left; **Add visual references** starts collapsed.
 PDF export appears at the bottom only after a storyboard has been generated.
 
-Klein supports up to five relevant reference images. The app fixes 0.5 MP output,
-shrinks reference inputs, and paces hosted batches. Published model pricing starts
-around $0.014; host/input pricing varies. No expensive or cloud-only image-model
-fallback is used. [Model choice, local execution and limitations](docs/reference-image-workflow.md).
+The hosted adapter sends up to five relevant references, resized to at most 704
+pixels per side, and requests one 16:9 PNG at 0.5 MP with fast execution. Batches
+run sequentially with at least 12 seconds between hosted request starts. Exclusions
+are appended to the prompt because this adapter has no separate negative-prompt
+channel. Provider outputs are fetched and embedded before returning to the browser.
+
+The application fixes hosted rendering to Klein even if a legacy `REPLICATE_MODEL`
+value names another model. There is no automatic image-model fallback. Cost
+estimates require `IMAGE_ESTIMATE_USD_PER_IMAGE` and `IMAGE_ESTIMATE_PRICE_BASIS`;
+otherwise hosted cost remains unknown. See [model choice, local execution and
+limitations](docs/reference-image-workflow.md) for the recorded selection evidence.
 
 ## Creative workflow tools
 
@@ -98,6 +159,11 @@ npm run test:all
 
 The repository includes a separate local-first model evaluation CLI. Run these
 commands from the repository root with Ollama running.
+
+Stage 1 configurations include a machine-specific `modelStore` path; review it
+before running them on another machine. The current `stage1/vlm.json` also has a
+missing comma between its final two model entries and must be corrected before
+the VLM doctor or run commands can parse it.
 
 ### Environment checks
 
@@ -167,6 +233,9 @@ checks use Playwright with Chromium.
 - [Storyboard evaluation and scoring](docs/evaluation.md)
 - [Model evaluation tool, local/cloud policy, and download plan](docs/model-evaluation-tool.md)
 - [Image-generation architecture and limitations](docs/image-generation.md)
+- [Reference-conditioning model choice and recorded evidence](docs/reference-image-workflow.md)
+- [Voice transcription setup and deployment constraints](docs/transcription.md)
+- [Creative tools, persistence, exports, and estimate methodology](docs/additional-features.md)
 
 ## LLM Backends
 
