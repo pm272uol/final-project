@@ -61,12 +61,6 @@ export function StoryboardOutput({
         <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink/70">
           {data.logline}
         </p>
-        {metadata ? (
-          <section className="mt-4" aria-label="Generation details">
-            <h3 className="text-xs text-ink/60">Generation details</h3>
-            <GenerationDetails metadata={metadata} />
-          </section>
-        ) : null}
       </header>
 
       <section>
@@ -143,54 +137,6 @@ export function StoryboardOutput({
         </div>
         </div>
       </section>
-    </div>
-  );
-}
-
-function GenerationDetails({
-  metadata,
-}: {
-  metadata: GenerationMetadata;
-}) {
-  return (
-    <dl
-      className="mt-6 grid gap-3 border-[1.5px] border-ink bg-paper/80 p-4 text-xs sm:grid-cols-4"
-      data-testid="generation-metadata"
-    >
-      <MetadataItem label="Provider">
-        {metadata.provider}
-        {metadata.fallbackUsed ? " (fallback)" : ""}
-      </MetadataItem>
-      <MetadataItem label="Model">{metadata.model}</MetadataItem>
-      <MetadataItem label="Duration">{metadata.durationMs}ms</MetadataItem>
-      <MetadataItem label="Tokens">
-        {metadata.promptTokens ?? "n/a"} / {metadata.completionTokens ?? "n/a"}
-      </MetadataItem>
-      {metadata.fallbackReason ? (
-        <div className="border-t border-ink/15 pt-3 sm:col-span-4">
-          <dt className="mono text-[10px] uppercase tracking-wider text-rust">
-            Fallback reason
-          </dt>
-          <dd className="mt-1 text-ink/70">{metadata.fallbackReason}</dd>
-        </div>
-      ) : null}
-    </dl>
-  );
-}
-
-function MetadataItem({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <dt className="mono text-[10px] uppercase tracking-wider text-rust">
-        {label}
-      </dt>
-      <dd className="mt-1 font-bold">{children}</dd>
     </div>
   );
 }

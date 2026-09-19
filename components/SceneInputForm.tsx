@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import {
   DURATIONS,
   GENRES,
@@ -26,6 +27,44 @@ export function SceneInputForm({
   onSubmit,
   onCancel,
 }: Props) {
+  const [generatingIdea, setGeneratingIdea] = useState(false);
+  const [ideaError, setIdeaError] = useState("");
+  const ideaRequest = useRef<AbortController | null>(null);
+
+  // A changed brief or an unmounted form must not receive a stale suggestion.
+  useEffect(() => () => ideaRequest.current?.abort(), [input]);
+
+  async function generateIdea() {
+    if (loading || ideaRequest.current) return;
+    const controller = new AbortController();
+    ideaRequest.current = controller;
+    setGeneratingIdea(true);
+    setIdeaError("");
+    try {
+      const response = await fetch("/api/generate-scene-idea", {
+        method: "POST",
+        signal: controller.signal,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? "The scene idea could not be generated. Try again.");
+      }
+      if (typeof data.sceneIdea !== "string" || !data.sceneIdea.trim() || data.sceneIdea.trim().length > 1200) {
+        throw new Error("The generated scene idea was invalid. Try again.");
+      }
+      if (!controller.signal.aborted) {
+        onChange({ ...input, sceneIdea: data.sceneIdea.trim() });
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setIdeaError(error instanceof Error ? error.message : "The scene idea could not be generated. Try again.");
+      }
+    } finally {
+      ideaRequest.current = null;
+      setGeneratingIdea(false);
+    }
+  }
+
   const update = <Key extends keyof StoryboardInput>(
     key: Key,
     value: StoryboardInput[Key],
@@ -35,7 +74,7 @@ export function SceneInputForm({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit();
+        if (!generatingIdea) onSubmit();
       }}
       className="space-y-6"
     >
@@ -51,9 +90,34 @@ export function SceneInputForm({
           placeholder="Describe one visual moment, conflict, or discovery..."
           required
         />
-        <div className="mt-2 flex justify-end text-xs text-ink/55">
+        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-ink/55">
+          <button
+            type="button"
+            onClick={generateIdea}
+            disabled={loading || generatingIdea}
+            aria-busy={generatingIdea}
+            className={`inline-flex shrink-0 items-center justify-center gap-2 border px-2.5 py-1.5 font-bold text-ink transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+              generatingIdea
+                ? "cursor-wait border-ink/40 bg-acid/25"
+                : "border-ink/25 enabled:hover:border-ink enabled:hover:bg-acid disabled:cursor-not-allowed disabled:opacity-50"
+            }`}
+          >
+            {generatingIdea ? (
+              <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] border-ink/25 border-t-ink motion-safe:animate-spin" />
+            ) : (
+              <svg aria-hidden="true" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round">
+                <path d="m8 1.5 1.7 4.8L14.5 8l-4.8 1.7L8 14.5 6.3 9.7 1.5 8l4.8-1.7Z" />
+              </svg>
+            )}
+            <span className="grid">
+              <span className={`col-start-1 row-start-1 ${generatingIdea ? "invisible" : ""}`}>Generate scene idea</span>
+              <span className={`col-start-1 row-start-1 ${generatingIdea ? "" : "invisible"}`}>Generating idea…</span>
+            </span>
+          </button>
           <span className="mono">{input.sceneIdea.length} chars</span>
         </div>
+        <span role="status" className="sr-only">{generatingIdea ? "Generating a scene idea." : ""}</span>
+        {ideaError ? <p role="alert" className="mt-2 text-xs text-rust">{ideaError}</p> : null}
         <VoiceNotePanel disabled={loading} remainingChars={1200 - input.sceneIdea.trim().length - (input.sceneIdea.trim() ? 2 : 0)} onAppend={(text) => update("sceneIdea", [input.sceneIdea.trim(), text].filter(Boolean).join("\n\n"))} />
       </div>
 
@@ -75,10 +139,10 @@ export function SceneInputForm({
         type="submit"
         data-testid="generate-button"
         disabled={
-          loading || !input.sceneIdea.trim()
+          loading || generatingIdea || !input.sceneIdea.trim()
         }
         aria-disabled={
-          loading || !input.sceneIdea.trim()
+          loading || generatingIdea || !input.sceneIdea.trim()
         }
         className="group flex w-full items-center justify-between border-[1.5px] border-ink bg-ink px-5 py-4 text-left text-paper shadow-[5px_5px_0_#d8ff52] transition hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#d8ff52] disabled:cursor-not-allowed disabled:opacity-50"
       >
