@@ -8,10 +8,6 @@ import {
   TONES,
   VISUAL_STYLES,
 } from "@/lib/storyboardOptions";
-import {
-  ReferenceImagePanel,
-  type ReferenceImageDraft,
-} from "@/components/ReferenceImagePanel";
 import { VoiceNotePanel } from "@/components/VoiceNotePanel";
 import type { StoryboardInput } from "@/types/storyboard";
 
@@ -21,10 +17,6 @@ type Props = {
   onChange: (input: StoryboardInput) => void;
   onSubmit: () => void;
   onCancel: () => void;
-  references: ReferenceImageDraft[];
-  visualSummary: string;
-  onReferencesChange: (references: ReferenceImageDraft[]) => void;
-  onVisualSummaryChange: (summary: string) => void;
 };
 
 export function SceneInputForm({
@@ -33,10 +25,6 @@ export function SceneInputForm({
   onChange,
   onSubmit,
   onCancel,
-  references,
-  visualSummary,
-  onReferencesChange,
-  onVisualSummaryChange,
 }: Props) {
   const update = <Key extends keyof StoryboardInput>(
     key: Key,
@@ -63,8 +51,7 @@ export function SceneInputForm({
           placeholder="Describe one visual moment, conflict, or discovery..."
           required
         />
-        <div className="mt-2 flex justify-between gap-3 text-xs text-ink/55">
-          <span>One clear scene works best.</span>
+        <div className="mt-2 flex justify-end text-xs text-ink/55">
           <span className="mono">{input.sceneIdea.length} chars</span>
         </div>
         <VoiceNotePanel disabled={loading} remainingChars={1200 - input.sceneIdea.trim().length - (input.sceneIdea.trim() ? 2 : 0)} onAppend={(text) => update("sceneIdea", [input.sceneIdea.trim(), text].filter(Boolean).join("\n\n"))} />
@@ -83,23 +70,15 @@ export function SceneInputForm({
           <SelectField label="Deliverable" value={input.targetFormat} options={TARGET_FORMATS} onChange={value => update("targetFormat", value as StoryboardInput["targetFormat"])} />
         </div>
       </fieldset>
-      <details>
-        <summary className="cursor-pointer text-sm font-bold">Add visual references (optional)</summary>
-        <div className="mt-4"><ReferenceImagePanel references={references} summary={visualSummary} disabled={loading} onReferencesChange={onReferencesChange} onSummaryChange={onVisualSummaryChange} /></div>
-      </details>
 
       <button
         type="submit"
         data-testid="generate-button"
         disabled={
-          loading ||
-          !input.sceneIdea.trim() ||
-          (references.length > 0 && !visualSummary.trim())
+          loading || !input.sceneIdea.trim()
         }
         aria-disabled={
-          loading ||
-          !input.sceneIdea.trim() ||
-          (references.length > 0 && !visualSummary.trim())
+          loading || !input.sceneIdea.trim()
         }
         className="group flex w-full items-center justify-between border-[1.5px] border-ink bg-ink px-5 py-4 text-left text-paper shadow-[5px_5px_0_#d8ff52] transition hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#d8ff52] disabled:cursor-not-allowed disabled:opacity-50"
       >

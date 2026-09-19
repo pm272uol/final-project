@@ -1,4 +1,4 @@
-# Framewright: Storyboard Orchestrator
+# Concept Art & Storyboard Orchestrator
 
 A Next.js prototype for short-film creators with local and hosted AI backends. Enter a rough scene idea
 and creative constraints to generate a structured storyboard package with shot
@@ -17,15 +17,14 @@ claim that final comparative model selection or human evaluation is complete.
 | Structured output | Zod 4 validates inputs, model JSON, and saved packages. Storyboard generation checks panel count and sequence and allows one correction attempt with the same model before returning invalid-output errors. |
 | Panel rendering | Deterministic mock images by default; hosted FLUX.2 Klein 4B on Replicate for reference-conditioned rendering. Sharp resizes reference inputs and processes image assets on the server. |
 | Voice notes | Whisper Large-v3-Turbo: local `mlx-whisper` through a Python worker on Apple Silicon, or hosted Groq transcription. English, completed-recording transcription with editable results. |
-| Workspace | Storyboards, image history, and versions live in the current page session. Project storage and autosave controls are not part of the workspace. No application database or account service is required. |
-| Exports and playback | A4 production PDFs using lazy-loaded jsPDF, available below the generated storyboard. Timed playback previews still images with text cues; audio synthesis is not implemented. |
+| Workspace | Storyboards and generated images live in the current page session. Project storage and autosave controls are not part of the workspace. No application database or account service is required. |
+| Export | A4 production PDFs using lazy-loaded jsPDF, available below the generated storyboard. |
 | Verification | Vitest for unit/API tests, Playwright with Chromium for browser workflows, ESLint, and TypeScript. Separate CLIs cover local model benchmarks and application-level local/hosted comparisons. |
 
-The pipeline combines a scene brief with reviewed reference-image summaries and
-voice transcripts, generates and validates storyboard JSON, builds a shared visual
-bible, then renders panels from structured shot details and selected references.
-Provider credentials and inference calls stay on the server; editing, project
-storage, playback, and exports run in the browser.
+The pipeline combines a scene brief and optional voice transcript, generates and
+validates storyboard JSON, and builds shared visual direction. The first successful
+render automatically becomes the reference for later images. Provider credentials
+and inference calls stay on the server; the workspace and PDF export run in the browser.
 
 ## Run locally
 
@@ -64,7 +63,7 @@ This version supports local Ollama with `gemma4:e4b` and Vercel AI Gateway with
 A deterministic mock provider remains available for development.
 
 Panel images use a deterministic local mock by default. Hosted rendering uses
-**FLUX.2 Klein 4B** with the saved visual style and selected references. A local
+**FLUX.2 Klein 4B** with the generated visual style and the first rendered image as a reference. A local
 image-inference backend is not integrated or validated on the target Mac; the
 selected model has downloadable weights for separate local execution.
 Export the generated storyboard as a production PDF. The workspace no longer
@@ -110,10 +109,11 @@ frame automatically guides the remaining shots. Rendering uses the current saved
 visual style without separate approval steps. Completed and locked images are
 preserved; use **Regenerate** on a shot to create an alternative.
 
-The storyboard appears first. **Edit storyboard**, **Style and references**,
-**Preview sequence**, **Versions**, and **Technical details** are optional sections.
-Scene settings stay visible on the left; **Add visual references** starts collapsed.
-PDF export appears at the bottom only after a storyboard has been generated.
+The storyboard appears first, followed by always-visible story and production
+notes. Scene settings stay visible on the left. There are no reference uploads,
+editing panels, playback, version comparison, continuity checklists, or generation
+estimate controls. Technical output remains optional, and PDF export appears at
+the bottom only after a storyboard has been generated.
 
 The hosted adapter sends up to five relevant references, resized to at most 704
 pixels per side, and requests one 16:9 PNG at 0.5 MP with fast execution. Batches
@@ -127,19 +127,14 @@ estimates require `IMAGE_ESTIMATE_USD_PER_IMAGE` and `IMAGE_ESTIMATE_PRICE_BASIS
 otherwise hosted cost remains unknown. See [model choice, local execution and
 limitations](docs/reference-image-workflow.md) for the recorded selection evidence.
 
-## Creative workflow tools
+## Storyboard workflow
 
-Reorder, insert, duplicate and delete shots; edit the complete treatment and panel
-text; assign shot durations and preview sequence playback. Capture independent
-storyboard versions to compare revisions or input conditions within the current
-page session, and export an A4 production PDF. Reloading clears the current workspace.
-
-A continuity checklist records human review notes and flags possible text-level
-mismatches. Generation estimates compare one-shot and batch scopes using matching
-render timings and explicitly configured prices; unavailable estimates stay unknown.
-
-See [the additional-features guide](docs/additional-features.md) for usage,
-configuration, persistence details and limitations.
+Describe the scene, choose the scene settings, and generate a storyboard. Generate
+all missing images or render individual shots. The first successfully generated
+image guides subsequent shots, even if you render a shot out of order. Regenerating
+that shot retains the original reference; generating a new storyboard starts fresh.
+Story and production notes are always visible, and the completed board can be
+exported as an A4 production PDF. Reloading clears the current workspace.
 
 ## Commands
 
@@ -322,16 +317,10 @@ timeouts, and metrics.
 
 ### Shared visual bible
 
-The app creates a shared visual style from the storyboard descriptions. Open
-**Style and references** to adjust the palette, medium, lighting, characters, or
-locations. **Save style** applies those changes to the next render. Existing images
-stay in place with a direction-changed note, and can be regenerated individually.
-
-The image request records the current style version as the accepted direction;
-there is no separate approval button. The API continues to validate that version
-and the selected references. Older packages without a visual bible receive one
-from their saved scene settings when rendered. Editing is disabled during image
-generation, including pauses between batch requests.
+The app creates shared visual direction from the storyboard descriptions and scene
+settings. Rendering records the current visual bible version automatically. There
+are no visual bible editors or approval steps in the workspace. The API continues
+to validate the rendering context and automatic reference image.
 
 Rendering now uses structured action, framing, visible character/location IDs,
 and visible props with the approved bible. Free-form draft prompts cannot override
@@ -340,7 +329,7 @@ where supplied, clothing/accessories for that shot; active changes must be repea
 in subsequent shots. Exact rendered prompts remain in the raw JSON.
 
 This is a text-based continuity workflow with visual reference conditioning,
-session-local version history, and optional image locks.
+automatic first-frame references, and PDF export.
 Shared prompts do not guarantee visual consistency in generated images.
 
 ## English voice notes

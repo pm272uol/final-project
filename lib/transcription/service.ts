@@ -68,7 +68,7 @@ async function transcribeLocal(file: File, signal: AbortSignal): Promise<unknown
   localBusy = true;
   let directory: string | undefined;
   try {
-    directory = await mkdtemp(path.join(tmpdir(), "framewright-audio-"));
+    directory = await mkdtemp(path.join(tmpdir(), "concept-art-storyboard-orchestrator-audio-"));
     const audioPath = path.join(directory, `audio${path.extname(file.name).toLowerCase()}`);
     await writeFile(audioPath, Buffer.from(await file.arrayBuffer()), { mode: 0o600, signal });
     const output = await new Promise<string>((resolve, reject) => {

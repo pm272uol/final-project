@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     <rect x="890" y="519" width="72" height="7"/>
     <rect x="955" y="454" width="7" height="72"/>
   </g>
-  <text x="84" y="500" fill="white" font-family="monospace" font-size="22" letter-spacing="4">FRAMEWRIGHT MOCK RENDER</text>
+  <text x="84" y="500" fill="white" font-family="monospace" font-size="18" letter-spacing="1">Concept Art &amp; Storyboard Orchestrator · MOCK RENDER</text>
   <rect width="1024" height="576" filter="url(#grain)" opacity=".75"/>
 </svg>`;
 

@@ -21,7 +21,7 @@ export function ProjectControls({ versions, metadata, id, onIdChange, input, sto
         try { const warnings = await exportProductionPdf(storyboard!, input.duration); setStatus(warnings.length ? `PDF exported. ${warnings.join("; ")}.` : "Production PDF exported."); } finally { setExporting(false); }
       })}>Export production PDF</button>
       <details><summary className="cursor-pointer border p-2">More file options</summary><div className="mt-3 flex flex-wrap gap-3">
-      <button disabled={!storyboard} className="border p-2" onClick={() => void run(async () => { downloadFile("framewright-project.json", new Blob([JSON.stringify(snapshot(), null, 2)], { type: "application/json" })); setStatus("JSON exported with embedded images and generation metadata."); })}>Export project JSON</button>
+      <button disabled={!storyboard} className="border p-2" onClick={() => void run(async () => { downloadFile("concept-art-storyboard-orchestrator-project.json", new Blob([JSON.stringify(snapshot(), null, 2)], { type: "application/json" })); setStatus("JSON exported with embedded images and generation metadata."); })}>Export project JSON</button>
       <button disabled={!storyboard} className="border p-2" onClick={() => void run(async () => { await exportContactSheet(storyboard!); setStatus("Contact sheet exported."); })}>Export contact sheet</button>
       <button disabled={!storyboard} className="border p-2" onClick={() => window.print()}>Print storyboard</button>
       <button disabled={!storyboard} className="border p-2" onClick={() => void run(async () => { await navigator.clipboard.writeText(JSON.stringify(snapshot(), null, 2)); setStatus("Complete project copied."); })}>Copy complete storyboard</button>

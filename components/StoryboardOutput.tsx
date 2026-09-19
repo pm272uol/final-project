@@ -57,14 +57,16 @@ export function StoryboardOutput({
               </span>
             ))}
         </div>
-        <p className="mono mb-2 text-xs uppercase tracking-[0.16em] text-rust">
-          Generated treatment
-        </p>
         <h2 className="display text-5xl leading-none sm:text-6xl">{data.title}</h2>
         <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink/70">
           {data.logline}
         </p>
-        {metadata ? <details className="mt-4 text-xs text-ink/60"><summary className="cursor-pointer">Generation details</summary><GenerationDetails metadata={metadata} /></details> : null}
+        {metadata ? (
+          <section className="mt-4" aria-label="Generation details">
+            <h3 className="text-xs text-ink/60">Generation details</h3>
+            <GenerationDetails metadata={metadata} />
+          </section>
+        ) : null}
       </header>
 
       <section>
@@ -104,8 +106,8 @@ export function StoryboardOutput({
         </div>
       </section>
 
-      <details className="paper-card p-4">
-        <summary className="cursor-pointer font-bold">Story and production notes</summary>
+      <section className="paper-card p-4" aria-label="Story and production notes">
+        <h2 className="display text-3xl">Story and production notes</h2>
         <div className="mt-4">
         <div className="grid gap-5 md:grid-cols-2">
           <InfoCard title="Character">
@@ -140,7 +142,7 @@ export function StoryboardOutput({
           </InfoCard>
         </div>
         </div>
-      </details>
+      </section>
     </div>
   );
 }

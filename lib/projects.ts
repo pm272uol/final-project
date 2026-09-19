@@ -16,7 +16,7 @@ export function parseProject(value: unknown): SavedProject {
 }
 function database(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("framewright-projects", 1);
+    const request = indexedDB.open("concept-art-storyboard-orchestrator-projects", 1);
     request.onupgradeneeded = () => request.result.createObjectStore("projects", { keyPath: "id" });
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);

@@ -8,7 +8,7 @@ import { downloadFile } from "./projects";
 export async function exportProductionPdf(board: StoryboardPackage, target: string) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
-  pdf.setProperties({ title: board.title, subject: "Storyboard production package", creator: "Framewright" });
+  pdf.setProperties({ title: board.title, subject: "Storyboard production package", creator: "Concept Art & Storyboard Orchestrator" });
   const canvas = document.createElement("canvas"); canvas.width = 1240; canvas.height = 1754;
   const ctx = canvas.getContext("2d"); if (!ctx) throw new Error("Canvas is unavailable for PDF export.");
   const margin = 84, width = canvas.width - margin * 2, bottom = 1630;
@@ -16,7 +16,7 @@ export async function exportProductionPdf(board: StoryboardPackage, target: stri
   const warnings: string[] = [];
   function start() {
     ctx!.fillStyle = "#ffffff"; ctx!.fillRect(0, 0, canvas.width, canvas.height);
-    ctx!.fillStyle = "#a34429"; ctx!.font = "bold 22px sans-serif"; ctx!.fillText("FRAMEWRIGHT / PRODUCTION", margin, 65);
+    ctx!.fillStyle = "#a34429"; ctx!.font = "bold 22px sans-serif"; ctx!.fillText("Concept Art & Storyboard Orchestrator / PRODUCTION", margin, 65, width);
     ctx!.fillStyle = "#161813"; ctx!.font = "bold 30px sans-serif"; ctx!.fillText(pageTitle, margin, 118, width);
     ctx!.strokeStyle = "#161813"; ctx!.beginPath(); ctx!.moveTo(margin, 143); ctx!.lineTo(canvas.width - margin, 143); ctx!.stroke();
     y = 188;
@@ -85,7 +85,6 @@ export async function exportProductionPdf(board: StoryboardPackage, target: stri
       ctx.drawImage(image, margin + (width - w) / 2, imageY + (imageHeight - h) / 2, w, h);
     } else { ctx.fillStyle = "#555555"; ctx.font = "28px sans-serif"; ctx.fillText(shot.panel.imageUrl ? "Image unavailable" : "Image not generated", margin + 32, imageY + imageHeight / 2); }
     y += imageHeight + 44;
-    text(!shot.panel.imageUrl ? "Image not generated" : shot.panel.imageNeedsReview ? "Image requires review" : shot.panel.imageApproved ? "Image approved" : "Image awaiting approval", 22);
     field("Story beat", shot.panel.storyBeat);
     field("Action", shot.panel.action);
     field("Camera and framing", shot.panel.cameraDirection);
@@ -97,7 +96,7 @@ export async function exportProductionPdf(board: StoryboardPackage, target: stri
   flush();
   for (let page = 1; page <= pages; page++) {
     pdf.setPage(page); pdf.setFontSize(9); pdf.setTextColor(90);
-    pdf.text(`Framewright | ${page} / ${pages}`, 196, 287, { align: "right" });
+    pdf.text(`Concept Art & Storyboard Orchestrator | ${page} / ${pages}`, 196, 287, { align: "right" });
   }
   downloadFile("storyboard-production.pdf", pdf.output("blob"));
   return warnings;

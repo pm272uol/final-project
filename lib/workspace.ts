@@ -24,7 +24,7 @@ export function recoverWorkspace(value: unknown): Workspace {
 }
 async function database(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("framewright-recovery", 1);
+    const request = indexedDB.open("concept-art-storyboard-orchestrator-recovery", 1);
     request.onupgradeneeded = () => request.result.createObjectStore("drafts");
     request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
   });
