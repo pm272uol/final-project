@@ -5,7 +5,6 @@ import {
   DURATIONS,
   GENRES,
   PANEL_COUNTS,
-  TARGET_FORMATS,
   TONES,
   VISUAL_STYLES,
 } from "@/lib/storyboardOptions";
@@ -80,11 +79,15 @@ export function SceneInputForm({
     value: StoryboardInput[Key],
   ) => onChange({ ...input, [key]: value });
 
+  const remainingCharacters = 1200 - input.sceneIdea.trim().length;
+  const overCharacterLimit = remainingCharacters < 0;
+  const showCharacterHint = remainingCharacters <= 150;
+
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (!generatingIdea && !referencesBusy) onSubmit();
+        if (!generatingIdea && !referencesBusy && !overCharacterLimit) onSubmit();
       }}
       className="space-y-6"
     >
@@ -98,15 +101,24 @@ export function SceneInputForm({
           value={input.sceneIdea}
           onChange={(event) => update("sceneIdea", event.target.value)}
           placeholder="Describe one visual moment, conflict, or discovery..."
+          aria-invalid={overCharacterLimit || undefined}
+          aria-describedby={showCharacterHint ? "scene-idea-character-hint" : undefined}
           required
         />
-        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-ink/55">
+        <p id="scene-idea-character-hint" role="status" className={showCharacterHint
+          ? `mt-2 text-xs ${overCharacterLimit ? "text-rust" : "text-right text-ink/55"}`
+          : "sr-only"}>
+          {showCharacterHint && (overCharacterLimit
+            ? `Remove ${-remainingCharacters} ${remainingCharacters === -1 ? "character" : "characters"} to stay within the 1,200-character limit.`
+            : `${remainingCharacters} ${remainingCharacters === 1 ? "character" : "characters"} remaining`)}
+        </p>
+        <div role="group" aria-label="Scene idea tools" className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2">
           <button
             type="button"
             onClick={generateIdea}
             disabled={loading || generatingIdea}
             aria-busy={generatingIdea}
-            className={`inline-flex shrink-0 items-center justify-center gap-2 border px-2.5 py-1.5 font-bold text-ink transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+            className={`inline-flex min-h-9 items-center justify-center gap-2 border px-2.5 py-2 text-xs font-bold text-ink transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
               generatingIdea
                 ? "cursor-wait border-ink/40 bg-acid/25"
                 : "border-ink/25 enabled:hover:border-ink enabled:hover:bg-acid disabled:cursor-not-allowed disabled:opacity-50"
@@ -124,11 +136,10 @@ export function SceneInputForm({
               <span className={`col-start-1 row-start-1 ${generatingIdea ? "" : "invisible"}`}>Generating idea…</span>
             </span>
           </button>
-          <span className="mono">{input.sceneIdea.length} chars</span>
+          <VoiceNotePanel disabled={loading || generatingIdea} remainingChars={remainingCharacters - (input.sceneIdea.trim() ? 2 : 0)} onAppend={(text) => update("sceneIdea", [input.sceneIdea.trim(), text].filter(Boolean).join("\n\n"))} />
         </div>
         <span role="status" className="sr-only">{generatingIdea ? "Generating a scene idea." : ""}</span>
         {ideaError ? <p role="alert" className="mt-2 text-xs text-rust">{ideaError}</p> : null}
-        <VoiceNotePanel disabled={loading} remainingChars={1200 - input.sceneIdea.trim().length - (input.sceneIdea.trim() ? 2 : 0)} onAppend={(text) => update("sceneIdea", [input.sceneIdea.trim(), text].filter(Boolean).join("\n\n"))} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -140,8 +151,9 @@ export function SceneInputForm({
         <div className="mt-4 grid grid-cols-2 gap-4">
           <SelectField label="Genre" value={input.genre} options={GENRES} onChange={value => update("genre", value as StoryboardInput["genre"])} />
           <SelectField label="Duration" value={input.duration} options={DURATIONS} onChange={value => update("duration", value as StoryboardInput["duration"])} />
-          <SelectField label="Tone" value={input.tone} options={TONES} onChange={value => update("tone", value as StoryboardInput["tone"])} />
-          <SelectField label="Deliverable" value={input.targetFormat} options={TARGET_FORMATS} onChange={value => update("targetFormat", value as StoryboardInput["targetFormat"])} />
+          <div className="col-span-2">
+            <SelectField label="Tone" value={input.tone} options={TONES} onChange={value => update("tone", value as StoryboardInput["tone"])} />
+          </div>
         </div>
       </fieldset>
 
@@ -157,10 +169,10 @@ export function SceneInputForm({
         type="submit"
         data-testid="generate-button"
         disabled={
-          loading || generatingIdea || referencesBusy || !input.sceneIdea.trim()
+          loading || generatingIdea || referencesBusy || overCharacterLimit || !input.sceneIdea.trim()
         }
         aria-disabled={
-          loading || generatingIdea || referencesBusy || !input.sceneIdea.trim()
+          loading || generatingIdea || referencesBusy || overCharacterLimit || !input.sceneIdea.trim()
         }
         className="group flex w-full items-center justify-between border-[1.5px] border-ink bg-ink px-5 py-4 text-left text-paper shadow-[5px_5px_0_#d8ff52] transition hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#d8ff52] disabled:cursor-not-allowed disabled:opacity-50"
       >

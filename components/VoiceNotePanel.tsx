@@ -14,13 +14,18 @@ export function VoiceNotePanel(props: Props) {
     if (!open && wasOpen.current) trigger.current?.focus();
     wasOpen.current = open;
   }, [open]);
-  return <div className="mt-3">
+  return <>
     <button ref={trigger} type="button" disabled={props.disabled} onClick={() => setOpen(true)}
-      className="border border-ink/30 px-3 py-2 text-sm font-bold transition hover:bg-ink/5 disabled:opacity-50">
+      aria-haspopup="dialog"
+      className="inline-flex min-h-9 items-center justify-center gap-2 border border-ink/25 px-2.5 py-2 text-xs font-bold text-ink transition-colors enabled:hover:border-ink enabled:hover:bg-acid disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+      <svg aria-hidden="true" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
+        <path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5M5.5 14.5h5" />
+      </svg>
       Record scene idea
     </button>
     {open && <VoiceNoteDialog {...props} onClose={() => setOpen(false)} />}
-  </div>;
+  </>;
 }
 
 function VoiceNoteDialog({ disabled, remainingChars, onAppend, onClose }: Props & { onClose: () => void }) {
