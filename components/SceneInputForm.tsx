@@ -22,6 +22,8 @@ type Props = {
   visualSummary: string;
   onReferencesChange: (references: ReferenceImageDraft[]) => void;
   onVisualSummaryChange: (summary: string) => void;
+  hasStoryboard: boolean;
+  hasUnappliedChanges: boolean;
 };
 
 export function SceneInputForm({
@@ -34,11 +36,14 @@ export function SceneInputForm({
   visualSummary,
   onReferencesChange,
   onVisualSummaryChange,
+  hasStoryboard,
+  hasUnappliedChanges,
 }: Props) {
   const [generatingIdea, setGeneratingIdea] = useState(false);
   const [ideaError, setIdeaError] = useState("");
   const [referencesBusy, setReferencesBusy] = useState(false);
   const ideaRequest = useRef<AbortController | null>(null);
+  const [previousIdea, setPreviousIdea] = useState<{ before: string; generated: string } | null>(null);
 
   // A changed brief or an unmounted form must not receive a stale suggestion.
   useEffect(() => () => ideaRequest.current?.abort(), [input]);
@@ -62,6 +67,7 @@ export function SceneInputForm({
         throw new Error("The generated scene idea was invalid. Try again.");
       }
       if (!controller.signal.aborted) {
+        setPreviousIdea({ before: input.sceneIdea, generated: data.sceneIdea.trim() });
         onChange({ ...input, sceneIdea: data.sceneIdea.trim() });
       }
     } catch (error) {
@@ -91,6 +97,7 @@ export function SceneInputForm({
       }}
       className="space-y-6"
     >
+      <fieldset disabled={loading} className="min-w-0 space-y-6">
       <div>
         <label className="label" htmlFor="sceneIdea">
           01 / Scene idea
@@ -139,21 +146,23 @@ export function SceneInputForm({
           <VoiceNotePanel disabled={loading || generatingIdea} remainingChars={remainingCharacters - (input.sceneIdea.trim() ? 2 : 0)} onAppend={(text) => update("sceneIdea", [input.sceneIdea.trim(), text].filter(Boolean).join("\n\n"))} />
         </div>
         <span role="status" className="sr-only">{generatingIdea ? "Generating a scene idea." : ""}</span>
+        {previousIdea && input.sceneIdea === previousIdea.generated && <p className="mt-2 text-xs text-ink/65">
+          New idea added. <button type="button" disabled={loading || generatingIdea} className="font-bold underline underline-offset-2 disabled:opacity-50"
+            onClick={() => { update("sceneIdea", previousIdea.before); setPreviousIdea(null); }}>Undo</button>
+        </p>}
         {ideaError ? <p role="alert" className="mt-2 text-xs text-rust">{ideaError}</p> : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4">
         <SelectField label="Visual style" value={input.visualStyle} options={VISUAL_STYLES} onChange={value => update("visualStyle", value as StoryboardInput["visualStyle"])} />
-        <SelectField label="Panels" value={String(input.panelCount)} options={PANEL_COUNTS.map(String)} onChange={value => update("panelCount", Number(value) as StoryboardInput["panelCount"])} />
       </div>
       <fieldset>
         <legend className="text-sm font-bold">Scene settings</legend>
         <div className="mt-4 grid grid-cols-2 gap-4">
           <SelectField label="Genre" value={input.genre} options={GENRES} onChange={value => update("genre", value as StoryboardInput["genre"])} />
           <SelectField label="Duration" value={input.duration} options={DURATIONS} onChange={value => update("duration", value as StoryboardInput["duration"])} />
-          <div className="col-span-2">
-            <SelectField label="Tone" value={input.tone} options={TONES} onChange={value => update("tone", value as StoryboardInput["tone"])} />
-          </div>
+          <SelectField label="Tone" value={input.tone} options={TONES} onChange={value => update("tone", value as StoryboardInput["tone"])} />
+          <SelectField label="Panels" value={String(input.panelCount)} options={PANEL_COUNTS.map(String)} onChange={value => update("panelCount", Number(value) as StoryboardInput["panelCount"])} />
         </div>
       </fieldset>
 
@@ -164,7 +173,12 @@ export function SceneInputForm({
             onReferencesChange={onReferencesChange} onSummaryChange={onVisualSummaryChange} onBusyChange={setReferencesBusy} />
         </div>
       </details>
+      </fieldset>
 
+      {hasStoryboard && <div className="space-y-1 text-xs text-ink/65">
+        {hasUnappliedChanges && <p role="status" className="font-bold text-rust">Changes not applied</p>}
+        <p>Generating a new storyboard replaces this board and its images. Settings apply to the new board.</p>
+      </div>}
       <button
         type="submit"
         data-testid="generate-button"
@@ -179,7 +193,7 @@ export function SceneInputForm({
         <span className="font-bold">
           {loading
             ? "Generating storyboard..."
-            : "Generate storyboard"}
+            : hasStoryboard ? "Generate new storyboard" : "Generate storyboard"}
         </span>
         <span
           aria-hidden="true"

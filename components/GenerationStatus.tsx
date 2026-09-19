@@ -19,7 +19,6 @@ export function GenerationStatus({
   const progress = useMemo(() => inspectGenerationOutput(output), [output]);
   const validating = /validat/i.test(message);
   const currentStage = getCurrentStage({
-    message,
     output,
     panelCount: progress.panelCount,
     requestedPanelCount,
@@ -27,17 +26,17 @@ export function GenerationStatus({
   });
   const stages = [
     {
-      label: "Prompt",
+      label: "Brief",
       detail: "Brief prepared",
       state: output ? "complete" : "active",
     },
     {
-      label: "Treatment",
-      detail: progress.title ? "Treatment drafted" : "Title and logline",
+      label: "Story",
+      detail: progress.title ? "Story drafted" : "Title and summary",
       state: progress.title ? "complete" : output ? "active" : "pending",
     },
     {
-      label: "World",
+      label: "Setting",
       detail:
         progress.characters.length || progress.locations.length
           ? `${progress.characters.length} cast / ${progress.locations.length} sets`
@@ -50,7 +49,7 @@ export function GenerationStatus({
             : "pending",
     },
     {
-      label: "Panels",
+      label: "Shots",
       detail: `${progress.panelCount} of ${requestedPanelCount} drafted`,
       state:
         progress.panelCount >= requestedPanelCount
@@ -60,8 +59,8 @@ export function GenerationStatus({
             : "pending",
     },
     {
-      label: "Validate",
-      detail: validating ? "Checking package" : "Schema and continuity",
+      label: "Review",
+      detail: validating ? "Checking shots" : "Final checks",
       state: validating ? "active" : "pending",
     },
   ] as const;
@@ -91,7 +90,7 @@ export function GenerationStatus({
           <div className="flex items-center gap-3">
             <ActivityIndicator />
             <span className="mono text-[10px] uppercase tracking-[0.18em] text-acid">
-              Model working
+              Creating storyboard
             </span>
           </div>
           <span className="mono text-[10px] uppercase tracking-wider text-paper/55">
@@ -114,9 +113,7 @@ export function GenerationStatus({
             <p className="mt-3 text-sm text-ink/55">
               Latest beat: {progress.latestStoryBeat}
             </p>
-          ) : (
-            <p className="mt-3 text-sm text-ink/55">{message}</p>
-          )}
+          ) : null}
         </div>
 
         <ol className="grid border-b-[1.5px] border-ink sm:grid-cols-5">
@@ -158,7 +155,7 @@ export function GenerationStatus({
         <div className="grid gap-4 p-4 sm:grid-cols-3 sm:p-5">
           <ProgressCard
             label="Working title"
-            value={progress.title ?? "Waiting for treatment"}
+            value={progress.title ?? "Writing the story"}
           />
           <ProgressCard
             label="Characters"
@@ -191,9 +188,10 @@ export function GenerationStatus({
 
         <details className="border-t-[1.5px] border-ink bg-ink text-paper">
           <summary className="mono cursor-pointer px-4 py-3 text-[10px] uppercase tracking-[0.16em] text-paper/65 hover:text-acid sm:px-5">
-            Technical output - {output.length.toLocaleString()} characters
+            Technical details
           </summary>
           <div className="border-t border-paper/20 p-4 sm:p-5">
+            <p className="mb-3 text-xs text-paper/65">{message}</p>
             <pre
               ref={outputRef}
               className="h-56 overflow-auto whitespace-pre-wrap break-words border border-paper/20 bg-black/25 p-4 font-mono text-[11px] leading-relaxed text-paper/70"
@@ -206,8 +204,7 @@ export function GenerationStatus({
         </details>
       </div>
       <p className="mt-5 text-center text-xs leading-relaxed text-ink/50">
-        Milestones are inferred from completed fields in the model response.
-        The full package is validated before the storyboard is shown.
+        Your storyboard will appear here when it is ready.
       </p>
     </div>
   );
@@ -241,32 +238,29 @@ function ActivityIndicator() {
 }
 
 function getCurrentStage({
-  message,
   output,
   panelCount,
   requestedPanelCount,
   validating,
 }: {
-  message: string;
   output: string;
   panelCount: number;
   requestedPanelCount: number;
   validating: boolean;
 }) {
-  if (validating) return "Checking the finished storyboard...";
+  if (validating) return "Checking the shots…";
   if (panelCount >= requestedPanelCount) {
-    return "Finishing continuity and production notes...";
+    return "Adding the finishing touches…";
   }
   if (panelCount > 0) {
-    return `Drafting panel ${Math.min(
+    return `Writing shot ${Math.min(
       panelCount + 1,
       requestedPanelCount,
-    )} of ${requestedPanelCount}...`;
+    )} of ${requestedPanelCount}…`;
   }
-  if (output.includes('"locations"')) return "Establishing locations...";
-  if (output.includes('"characters"')) return "Defining the cast...";
-  if (output) return "Shaping the treatment...";
-  return message;
+  if (output.includes('"locations"')) return "Setting the scene…";
+  if (output.includes('"characters"')) return "Developing the characters…";
+  return "Writing your storyboard…";
 }
 
 function formatElapsed(seconds: number) {

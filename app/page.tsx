@@ -7,7 +7,9 @@ import { imageEstimateConfigSchema, type ImageEstimateConfig } from "@/lib/gener
 import { PdfExport } from "@/components/PdfExport";
 import { choosePanelImage, pendingPanels, rememberPanelImage, replacePanelImage, type PanelImageVersion } from "@/lib/panelRevision";
 import { createVisualBible } from "@/lib/visualBible";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWorkspaceRecovery } from "@/lib/useWorkspaceRecovery";
+import type { Workspace } from "@/lib/workspace";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { GenerationStatus } from "@/components/GenerationStatus";
 import { JsonPreview } from "@/components/JsonPreview";
@@ -66,6 +68,36 @@ export default function Home() {
     new Map<number, AbortController>(),
   );
 
+  const restoreWorkspace = useCallback(async (saved: Workspace) => {
+    const restoredReferences = await Promise.all(saved.references.map(async reference => {
+      const imageUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(reference.blob);
+      });
+      return { ...reference, imageUrl, previewUrl: imageUrl };
+    }));
+    setInput({ ...saved.input, targetFormat: "Storyboard + shot list" });
+    setProjectInput(saved.projectInput);
+    setStoryboard(saved.storyboard);
+    setGenerationMetadata(saved.metadata);
+    setRequestedPanelCount(saved.projectInput?.panelCount ?? saved.input.panelCount);
+    setVisualSummary(saved.visualSummary);
+    setReferences(restoredReferences);
+    setStatusMessage("Workspace restored from this browser.");
+    setOutputRevision(value => value + 1);
+  }, []);
+  const workspace = useMemo<Workspace>(() => ({
+    input, projectInput, storyboard, metadata: generationMetadata, projectId: null, versions: [], visualSummary,
+    references: references.map(({ id, blob, purpose }) => ({ id, blob, purpose })),
+  }), [input, projectInput, storyboard, generationMetadata, visualSummary, references]);
+  const recovery = useWorkspaceRecovery(workspace, restoreWorkspace);
+  const hasUnappliedChanges = Boolean(projectInput && (
+    Object.entries(input).some(([key, value]) => key !== "visualReferenceSummary" && value !== projectInput[key as keyof StoryboardInput]) ||
+    visualSummary.trim() !== (projectInput.visualReferenceSummary ?? "").trim()
+  ));
+
   const evaluation = useMemo(
     () =>
       storyboard
@@ -75,6 +107,7 @@ export default function Home() {
   );
 
   async function generate() {
+    if (!recovery.ready || generationController.current || imageGenerationControllers.current.size || batchGenerating) return;
     setLoading(true);
     setError("");
     setErrorDetails([]);
@@ -225,7 +258,7 @@ export default function Home() {
     }
   }
 
-  async function refinePanelImage(panelNumber: number, instructions: string, signal: AbortSignal): Promise<PanelImageVersion> {
+  async function refinePanelImage(panelNumber: number, instructions: string | undefined, signal: AbortSignal): Promise<PanelImageVersion> {
     const panel = storyboard?.storyboard.find(item => item.panelNumber === panelNumber);
     if (!storyboard || !panel?.imageUrl || panel.imageApproved || imageGenerationControllers.current.size) {
       throw new Error("Wait for the current image generation to finish.");
@@ -237,7 +270,7 @@ export default function Home() {
     updatePanelImage(panelNumber, { imageStatus: "generating", imageError: undefined });
     try {
       const result = await requestPanelImage(renderBoard, panel, createImageContext(renderBoard), combinedSignal,
-        { instructions, imageUrl: panel.imageUrl });
+        instructions ? { instructions, imageUrl: panel.imageUrl } : undefined);
       combinedSignal.throwIfAborted();
       const candidate = { ...panel, ...result };
       delete candidate.imageHistory;
@@ -347,8 +380,11 @@ export default function Home() {
               Scene brief
             </p>
             <h2 className="display mt-1 text-4xl">Set the frame</h2>
+            <p role="status" data-testid="workspace-save-status" className="mt-2 text-xs text-ink/55">
+              {recovery.status}{recovery.saveFailed && <> <button type="button" onClick={recovery.retrySave} className="font-bold underline">Retry save</button></>}
+            </p>
           </div>
-          <fieldset disabled={batchGenerating || storyboard?.storyboard.some(p => p.imageStatus === "generating")} >
+          <fieldset disabled={!recovery.ready || batchGenerating || storyboard?.storyboard.some(p => p.imageStatus === "generating")} >
           <SceneInputForm
             input={input}
             loading={loading}
@@ -359,6 +395,8 @@ export default function Home() {
             visualSummary={visualSummary}
             onReferencesChange={changeReferences}
             onVisualSummaryChange={setVisualSummary}
+            hasStoryboard={Boolean(storyboard)}
+            hasUnappliedChanges={hasUnappliedChanges}
           />
           </fieldset>
           {error ? (
@@ -396,7 +434,7 @@ export default function Home() {
           ) : storyboard && evaluation ? (
             <div className="space-y-8">
               <StoryboardOutput
-                key={outputRevision}
+                key={`storyboard-${outputRevision}`}
                 onRefineImage={refinePanelImage}
                 onSelectImage={selectPanelImage}
                 imagesDisabled={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}
@@ -411,7 +449,7 @@ export default function Home() {
               <EvaluationPanel result={evaluation} />
               <JsonPreview data={storyboard} />
               </div></details>
-              <PdfExport key={outputRevision} storyboard={storyboard} duration={(projectInput ?? input).duration} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} />
+              <PdfExport key={`pdf-${outputRevision}`} storyboard={storyboard} duration={(projectInput ?? input).duration} busy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")} />
             </div>
           ) : (
             <EmptyState />

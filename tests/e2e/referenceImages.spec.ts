@@ -29,7 +29,7 @@ test("uploads guide every frame without analysis and removal restores the first-
   await page.getByRole("button", { name: "Remove reference", exact: true }).first().click();
   await page.getByRole("button", { name: "Remove reference", exact: true }).click();
   await page.getByRole("button", { name: "Regenerate image for panel 3", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Regenerate image for panel 3", exact: true })).toBeEnabled();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Use this image", exact: true })).toBeEnabled();
   expect(requests[4].references).toHaveLength(1);
   expect(requests[4].references?.[0]).toMatchObject({ source: "generated", imageUrl: firstFrame });
 });
@@ -59,8 +59,9 @@ test("uploads added after generation guide both refinement and subsequent regene
   expect(requests[1].references?.[0].source).toBe("upload");
   await dialog.getByRole("button", { name: "Keep current", exact: true }).click();
   await page.getByRole("button", { name: "Regenerate image for panel 1", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Regenerate image for panel 1", exact: true })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: "Use this image", exact: true })).toBeEnabled();
   expect(requests[2].references).toEqual(requests[1].references);
+  await dialog.getByRole("button", { name: "Keep current", exact: true }).click();
   await page.getByTestId("analyze-references").click();
   await expect(page.getByLabel("Combined visual direction")).not.toHaveValue("");
   const storyboardRequest = page.waitForRequest("**/api/generate-storyboard");

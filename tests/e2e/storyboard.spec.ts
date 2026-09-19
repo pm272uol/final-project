@@ -35,9 +35,7 @@ test("generates a complete scene-aware storyboard package", async ({ page }) => 
   await expect(page.getByTestId("storyboard-output")).not.toContainText(
     "Astronaut",
   );
-  await expect(page.getByTestId("storyboard-output")).toContainText(
-    "deterministic-scene-aware-v1",
-  );
+  await expect(page.getByText("Generation details", { exact: true })).toHaveCount(0);
   await expand(page, "Technical details");
   await expect(
     page.getByRole("heading", { name: "Production ready" }),
@@ -182,11 +180,14 @@ test("preserves existing images when a replacement fails", async ({ page }) => {
   const original = await page.getByTestId("panel-image-3").locator("img").getAttribute("src");
   await page.route("**/api/generate-panel-image", route => route.fulfill({ status: 502, json: { error: "Replacement test failure" } }));
   await page.getByRole("button", { name: "Regenerate image for panel 3", exact: true }).click();
-  await expect(page.getByTestId("panel-image-3")).toContainText("Replacement test failure");
-  await expect(page.getByTestId("panel-image-3").locator("img")).toHaveAttribute("src", original!);
+  const dialog = page.getByRole("dialog", { name: "Regenerate image", exact: true });
+  await expect(dialog.getByRole("alert")).toContainText("Replacement test failure");
+  await expect(page.getByTestId("panel-image-3").getByRole("img", { name: /^Generated storyboard image/ })).toHaveAttribute("src", original!);
   await page.unroute("**/api/generate-panel-image");
-  await page.getByRole("button", { name: "Retry image for panel 3", exact: true }).click();
-  await expect(page.getByTestId("panel-image-3")).not.toContainText("Replacement test failure");
+  await dialog.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Use this image", exact: true })).toBeEnabled();
+  await dialog.getByRole("button", { name: "Keep current", exact: true }).click();
+  await expect(page.getByTestId("panel-image-3").locator("img")).toHaveAttribute("src", original!);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
@@ -260,7 +261,8 @@ test("uses the first successful image even out of order and resets it for a new 
   await expect(page.getByRole("button", { name: "Regenerate image for panel 3", exact: true })).toBeEnabled();
   const firstImage = await page.getByTestId("panel-image-3").locator("img").getAttribute("src");
   await page.getByRole("button", { name: "Regenerate image for panel 3", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Regenerate image for panel 3", exact: true })).toBeEnabled();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Use this image", exact: true })).toBeEnabled();
+  await page.getByRole("dialog").getByRole("button", { name: "Use this image", exact: true }).click();
   await page.getByTestId("generate-all-images").click();
   await expect(page.getByTestId("generate-all-images")).toHaveText("Images ready");
   expect(requests).toHaveLength(5);

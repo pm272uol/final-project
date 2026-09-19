@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ImageRefinement, type ImageRevisionActions } from "@/components/ImageRefinement";
+import { ZoomableImage } from "@/components/ZoomableImage";
 import type {
   GenerationMetadata,
   StoryboardPackage,
@@ -268,10 +269,8 @@ function PanelImage({
       {panel.imageApproved && <p className="p-2">Image locked</p>}
       <div className="relative aspect-video">
         {complete ? (
-          // Provider domains are dynamic and Replicate URLs are temporary.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={panel.imageUrl}
+          <ZoomableImage
+            src={panel.imageUrl!}
             alt={`Generated storyboard image for panel ${panel.panelNumber}: ${panel.storyBeat}`}
             className="h-full w-full object-cover"
           />
@@ -304,21 +303,19 @@ function PanelImage({
         </div>
         {complete && <ImageRefinement panel={panel} disabled={imagesDisabled || generating}
           onRefineImage={onRefineImage} onSelectImage={onSelectImage} />}
-        <button
+        {!complete && <button
           type="button"
           onClick={() => void onGenerateImage(panel.panelNumber)}
           disabled={generating || imagesDisabled || panel.imageApproved}
           className="mono shrink-0 border border-ink bg-paper px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider hover:bg-acid disabled:cursor-wait disabled:opacity-50"
-          aria-label={`${failed ? "Retry" : complete ? "Regenerate" : "Generate"} image for panel ${panel.panelNumber}`}
+          aria-label={`${failed ? "Retry" : "Generate"} image for panel ${panel.panelNumber}`}
         >
           {generating
             ? "Generating..."
             : failed
               ? "Retry"
-              : complete
-                ? "Regenerate"
-                : "Generate image"}
-        </button>
+              : "Generate image"}
+        </button>}
       </div>
     </div>
   );
@@ -326,7 +323,7 @@ function PanelImage({
 
 function imageProgress(data: StoryboardPackage) {
   const completed = data.storyboard.filter(
-    (panel) => panel.imageStatus === "complete",
+    (panel) => Boolean(panel.imageUrl),
   ).length;
   const generating = data.storyboard.filter(
     (panel) => panel.imageStatus === "generating",
