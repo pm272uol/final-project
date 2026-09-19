@@ -1,9 +1,11 @@
 "use client";
 
-import { generatedStoryboardPanelSchema } from "@/lib/storyboardSchema";
+import { requestPanelImage } from "@/lib/requestPanelImage";
+import { sceneImageReferences, uploadedVisualReferences } from "@/lib/image-generation/sceneReferences";
+import type { ReferenceImageDraft } from "@/components/ReferenceImagePanel";
 import { imageEstimateConfigSchema, type ImageEstimateConfig } from "@/lib/generationEstimates";
 import { PdfExport } from "@/components/PdfExport";
-import { pendingPanels, replacePanelImage } from "@/lib/panelRevision";
+import { choosePanelImage, pendingPanels, rememberPanelImage, replacePanelImage, type PanelImageVersion } from "@/lib/panelRevision";
 import { createVisualBible } from "@/lib/visualBible";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
@@ -18,7 +20,6 @@ import type {
   StoryboardGenerationResponse,
   StoryboardGenerationStreamEvent,
   StoryboardInput,
-  PanelImageGenerationResponse,
   StoryboardPackage,
   VisualReference,
 } from "@/types/storyboard";
@@ -35,6 +36,8 @@ export default function Home() {
     return () => controller.abort();
   }, []);
   const [input, setInput] = useState<StoryboardInput>(DEFAULT_INPUT);
+  const [references, setReferences] = useState<ReferenceImageDraft[]>([]);
+  const [visualSummary, setVisualSummary] = useState("");
   const [projectInput, setProjectInput] = useState<StoryboardInput | null>(null);
   const [storyboard, setStoryboard] = useState<StoryboardPackage | null>(null);
   const [generationMetadata, setGenerationMetadata] =
@@ -89,7 +92,7 @@ export default function Home() {
           "Content-Type": "application/json",
           Accept: "application/x-ndjson",
         },
-        body: JSON.stringify(input),
+        body: JSON.stringify({ ...input, visualReferenceSummary: visualSummary.trim() || undefined }),
         signal: controller.signal,
       });
 
@@ -124,8 +127,8 @@ export default function Home() {
       }
 
       setOutputRevision(value => value + 1);
-      setStoryboard({ ...data.storyboard, visualReferences: [] });
-      setProjectInput({ ...input });
+      setStoryboard({ ...data.storyboard, visualReferences: uploadedVisualReferences(references) });
+      setProjectInput({ ...input, visualReferenceSummary: visualSummary.trim() || undefined });
       setGenerationMetadata(data.metadata);
       setRequestedPanelCount(input.panelCount);
       setStatusMessage(
@@ -157,7 +160,15 @@ export default function Home() {
   function imageBoard(source: StoryboardPackage): StoryboardPackage {
     const bible = source.visualBible ?? createVisualBible(source, projectInput ?? input);
     // Rendering uses the current direction. The version records exactly what was used.
-    return { ...source, visualBible: { ...bible, approvedVersion: bible.version } };
+    return { ...source,
+      visualReferences: sceneImageReferences(source, uploadedVisualReferences(references)),
+      visualBible: { ...bible, approvedVersion: bible.version } };
+  }
+
+  function changeReferences(next: ReferenceImageDraft[]) {
+    setReferences(next);
+    setStoryboard(current => current ? { ...current,
+      visualReferences: sceneImageReferences(current, uploadedVisualReferences(next)) } : current);
   }
 
   function cancelImages() {
@@ -174,7 +185,7 @@ export default function Home() {
     );
     if (!panel || panel.imageApproved || imageGenerationControllers.current.size > 0) return;
 
-    setStoryboard(current => current ? { ...current, visualBible: renderBoard.visualBible } : current);
+    setStoryboard(current => current ? { ...current, visualBible: renderBoard.visualBible, visualReferences: renderBoard.visualReferences } : current);
     const controller = new AbortController();
     imageGenerationControllers.current.set(panelNumber, controller);
     updatePanelImage(panelNumber, {
@@ -184,52 +195,16 @@ export default function Home() {
     setStatusMessage(`Generating image for panel ${panelNumber}.`);
 
     try {
-      const response = await fetch("/api/generate-panel-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          panel: generatedStoryboardPanelSchema.strip().parse(panel),
-          references: renderBoard.visualReferences?.slice(0, 1) ?? [],
-          imageContext: createImageContext(renderBoard),
-        }),
-        signal: controller.signal,
-      });
-      const result = (await response.json().catch(() => null)) as
-        | (PanelImageGenerationResponse & { error?: string; validationIssues?: string[] })
-        | null;
-
-      if (!response.ok || !result) {
-        throw new Error(
-          result?.validationIssues?.join(" ") || result?.error || "Image generation failed. Please retry this panel.",
-        );
-      }
+      const result = await requestPanelImage(renderBoard, panel, createImageContext(renderBoard), controller.signal);
 
       if (controller.signal.aborted || imageGenerationControllers.current.get(panelNumber) !== controller) return;
       let reference: VisualReference | undefined;
       if (!renderBoard.visualReferences?.length) {
-        reference = { id: crypto.randomUUID(), imageUrl: result.imageUrl, purpose: "style", approved: true, version: (renderBoard.visualReferences?.length ?? 0) + 1 };
+        reference = { id: crypto.randomUUID(), imageUrl: result.imageUrl!, purpose: "style", source: "generated", approved: true, version: (renderBoard.visualReferences?.length ?? 0) + 1 };
         const activeReference = reference;
         setStoryboard(current => current ? { ...current, visualReferences: [activeReference] } : current);
       }
-      updatePanelImage(panelNumber, {
-        imageReferenceIds: result.imageReferenceIds,
-        imageModelVersion: result.imageModelVersion,
-        imageSettings: result.imageSettings,
-        imageBibleVersion: result.imageBibleVersion,
-        imageNeedsReview: false,
-        imageStatus: "complete",
-        imageUrl: result.imageUrl,
-        imageError: undefined,
-        imageGenerationPrompt: result.imagePrompt,
-        imageGenerationNegativePrompt: result.negativePrompt,
-        imageProvider: result.imageProvider,
-        imageModel: result.imageModel,
-        imageSeed: result.imageSeed,
-        imageWidth: result.imageWidth,
-        imageHeight: result.imageHeight,
-        imageGeneratedAt: result.imageGeneratedAt,
-        imageGenerationDurationMs: result.imageGenerationDurationMs,
-      }, true);
+      updatePanelImage(panelNumber, result, true);
       setStatusMessage(`Image for panel ${panelNumber} generated successfully.`);
       return reference;
     } catch (caught) {
@@ -248,6 +223,39 @@ export default function Home() {
         imageGenerationControllers.current.delete(panelNumber);
       }
     }
+  }
+
+  async function refinePanelImage(panelNumber: number, instructions: string, signal: AbortSignal): Promise<PanelImageVersion> {
+    const panel = storyboard?.storyboard.find(item => item.panelNumber === panelNumber);
+    if (!storyboard || !panel?.imageUrl || panel.imageApproved || imageGenerationControllers.current.size) {
+      throw new Error("Wait for the current image generation to finish.");
+    }
+    const renderBoard = imageBoard(storyboard);
+    const controller = new AbortController();
+    const combinedSignal = AbortSignal.any([signal, controller.signal]);
+    imageGenerationControllers.current.set(panelNumber, controller);
+    updatePanelImage(panelNumber, { imageStatus: "generating", imageError: undefined });
+    try {
+      const result = await requestPanelImage(renderBoard, panel, createImageContext(renderBoard), combinedSignal,
+        { instructions, imageUrl: panel.imageUrl });
+      combinedSignal.throwIfAborted();
+      const candidate = { ...panel, ...result };
+      delete candidate.imageHistory;
+      setStoryboard(current => current ? { ...current, storyboard: current.storyboard.map(item =>
+        item.panelNumber === panelNumber ? rememberPanelImage(item, candidate) : item) } : current);
+      setStatusMessage(`New version of panel ${panelNumber} ready to compare. Your current image is unchanged.`);
+      return candidate;
+    } finally {
+      imageGenerationControllers.current.delete(panelNumber);
+      updatePanelImage(panelNumber, { imageStatus: "complete", imageError: undefined });
+    }
+  }
+
+  function selectPanelImage(panelNumber: number, candidate: PanelImageVersion) {
+    if (imageGenerationControllers.current.size || batchGenerating) return;
+    setStoryboard(current => current ? { ...current, storyboard: current.storyboard.map(panel =>
+      panel.panelNumber === panelNumber ? choosePanelImage(panel, candidate) : panel) } : current);
+    setStatusMessage(`Image for panel ${panelNumber} updated. The previous image is available in History.`);
   }
 
   async function generateAllPanelImages() {
@@ -347,6 +355,10 @@ export default function Home() {
             onChange={setInput}
             onSubmit={generate}
             onCancel={cancelGeneration}
+            references={references}
+            visualSummary={visualSummary}
+            onReferencesChange={changeReferences}
+            onVisualSummaryChange={setVisualSummary}
           />
           </fieldset>
           {error ? (
@@ -384,6 +396,9 @@ export default function Home() {
           ) : storyboard && evaluation ? (
             <div className="space-y-8">
               <StoryboardOutput
+                key={outputRevision}
+                onRefineImage={refinePanelImage}
+                onSelectImage={selectPanelImage}
                 imagesDisabled={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}
                 onCancelImages={cancelImages}
                 imagesBusy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}

@@ -54,7 +54,7 @@ export class ReplicateImageGenerationService
   ) {
     const klein = this.model === "black-forest-labs/flux-2-klein-4b";
     if (klein) {
-      const roles = (options.references ?? []).map((ref, index) => `Image ${index + 1}: ${ref.purpose === "style" ? "use only its visual medium, palette and texture; create the requested new camera angle, setting and subjects" : `preserve the ${ref.purpose} appearance of ${ref.entityId ?? "the depicted subject"} only when visible in the requested shot`}.`).join(" ");
+      const roles = (options.references ?? []).map((ref, index) => `Image ${index + 1}: ${ref.purpose === "composition" ? "use this as the composition reference; preserve its layout and subjects except for the explicitly requested changes" : ref.purpose === "style" ? "use only its visual medium, palette and texture; create the requested new camera angle, setting and subjects" : `preserve the ${ref.purpose} appearance of ${ref.entityId ?? "the depicted subject"} only when visible in the requested shot`}.`).join(" ");
       prompt = `${prompt} ${roles} Create one storyboard frame, not a collage. ${options.negativePrompt ? `Avoid: ${options.negativePrompt}` : ""}`.trim();
     }
     const startedAt = performance.now();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ImageRefinement, type ImageRevisionActions } from "@/components/ImageRefinement";
 import type {
   GenerationMetadata,
   StoryboardPackage,
@@ -14,6 +15,8 @@ export function StoryboardOutput({
   imagesDisabled = false,
   imagesBusy,
   onCancelImages,
+  onRefineImage,
+  onSelectImage,
 }: {
   imagesDisabled?: boolean;
   imagesBusy: boolean;
@@ -22,7 +25,7 @@ export function StoryboardOutput({
   metadata?: GenerationMetadata;
   onGeneratePanelImage: (panelNumber: number) => Promise<void>;
   onGenerateAllImages: () => Promise<void>;
-}) {
+} & ImageRevisionActions) {
   const [copyStatus, setCopyStatus] = useState("");
 
   function announceCopy(message: string) {
@@ -93,6 +96,8 @@ export function StoryboardOutput({
               key={panel.panelId ?? panel.panelNumber}
               panel={panel}
               onCopyStatus={announceCopy}
+              onRefineImage={onRefineImage}
+              onSelectImage={onSelectImage}
               imagesDisabled={imagesDisabled}
               onGenerateImage={onGeneratePanelImage}
             />
@@ -146,12 +151,14 @@ function PanelCard({
   onCopyStatus,
   onGenerateImage,
   imagesDisabled,
+  onRefineImage,
+  onSelectImage,
 }: {
   panel: StoryboardPackage["storyboard"][number];
   onCopyStatus: (message: string) => void;
   imagesDisabled: boolean;
   onGenerateImage: (panelNumber: number) => Promise<void>;
-}) {
+} & ImageRevisionActions) {
   const [copied, setCopied] = useState(false);
 
   async function copyPrompt() {
@@ -187,6 +194,8 @@ function PanelCard({
           panel={panel}
           imagesDisabled={imagesDisabled}
           onGenerateImage={onGenerateImage}
+          onRefineImage={onRefineImage}
+          onSelectImage={onSelectImage}
         />
         <h3 className="display text-3xl leading-tight">{panel.storyBeat}</h3>
 
@@ -236,11 +245,13 @@ function PanelImage({
   panel,
   onGenerateImage,
   imagesDisabled,
+  onRefineImage,
+  onSelectImage,
 }: {
   panel: StoryboardPackage["storyboard"][number];
   imagesDisabled: boolean;
   onGenerateImage: (panelNumber: number) => Promise<void>;
-}) {
+} & ImageRevisionActions) {
   const generating = panel.imageStatus === "generating";
   const complete = Boolean(panel.imageUrl);
   const failed = panel.imageStatus === "failed";
@@ -282,7 +293,7 @@ function PanelImage({
         )}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t-[1.5px] border-ink px-3 py-2">
-        <div className="min-w-0">
+        <div className={complete ? "sr-only" : "min-w-0"}>
           <p className="mono text-[9px] uppercase tracking-wider text-ink/50">
             {complete
               ? `${panel.imageWidth ?? 1024} × ${panel.imageHeight ?? 576}`
@@ -291,6 +302,8 @@ function PanelImage({
                 : "1024 x 576 / 16:9"}
           </p>
         </div>
+        {complete && <ImageRefinement panel={panel} disabled={imagesDisabled || generating}
+          onRefineImage={onRefineImage} onSelectImage={onSelectImage} />}
         <button
           type="button"
           onClick={() => void onGenerateImage(panel.panelNumber)}

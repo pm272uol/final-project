@@ -10,6 +10,7 @@ import {
   VISUAL_STYLES,
 } from "@/lib/storyboardOptions";
 import { VoiceNotePanel } from "@/components/VoiceNotePanel";
+import { ReferenceImagePanel, type ReferenceImageDraft } from "@/components/ReferenceImagePanel";
 import type { StoryboardInput } from "@/types/storyboard";
 
 type Props = {
@@ -18,6 +19,10 @@ type Props = {
   onChange: (input: StoryboardInput) => void;
   onSubmit: () => void;
   onCancel: () => void;
+  references: ReferenceImageDraft[];
+  visualSummary: string;
+  onReferencesChange: (references: ReferenceImageDraft[]) => void;
+  onVisualSummaryChange: (summary: string) => void;
 };
 
 export function SceneInputForm({
@@ -26,9 +31,14 @@ export function SceneInputForm({
   onChange,
   onSubmit,
   onCancel,
+  references,
+  visualSummary,
+  onReferencesChange,
+  onVisualSummaryChange,
 }: Props) {
   const [generatingIdea, setGeneratingIdea] = useState(false);
   const [ideaError, setIdeaError] = useState("");
+  const [referencesBusy, setReferencesBusy] = useState(false);
   const ideaRequest = useRef<AbortController | null>(null);
 
   // A changed brief or an unmounted form must not receive a stale suggestion.
@@ -74,7 +84,7 @@ export function SceneInputForm({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (!generatingIdea) onSubmit();
+        if (!generatingIdea && !referencesBusy) onSubmit();
       }}
       className="space-y-6"
     >
@@ -135,14 +145,22 @@ export function SceneInputForm({
         </div>
       </fieldset>
 
+      <details>
+        <summary className="cursor-pointer text-sm font-bold">Add visual references (optional)</summary>
+        <div className="mt-4">
+          <ReferenceImagePanel references={references} summary={visualSummary} disabled={loading || generatingIdea}
+            onReferencesChange={onReferencesChange} onSummaryChange={onVisualSummaryChange} onBusyChange={setReferencesBusy} />
+        </div>
+      </details>
+
       <button
         type="submit"
         data-testid="generate-button"
         disabled={
-          loading || generatingIdea || !input.sceneIdea.trim()
+          loading || generatingIdea || referencesBusy || !input.sceneIdea.trim()
         }
         aria-disabled={
-          loading || generatingIdea || !input.sceneIdea.trim()
+          loading || generatingIdea || referencesBusy || !input.sceneIdea.trim()
         }
         className="group flex w-full items-center justify-between border-[1.5px] border-ink bg-ink px-5 py-4 text-left text-paper shadow-[5px_5px_0_#d8ff52] transition hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#d8ff52] disabled:cursor-not-allowed disabled:opacity-50"
       >

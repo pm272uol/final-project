@@ -223,7 +223,8 @@ test("shows production notes and renders a whole board without extra options", a
   await expect(page.getByTestId("storyboard-panel")).toHaveCount(4);
   await expect(page.getByRole("region", { name: "Story and production notes" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Story and production notes" }).getByText("Production notes", { exact: true })).toBeVisible();
-  for (const label of ["Edit storyboard", "Style and references", "Character and location continuity", "Preview sequence", "Compare versions", "Continuity issue checklist", "Generation estimates", "Add visual references (optional)"]) {
+  await expect(page.getByText("Add visual references (optional)", { exact: true })).toBeVisible();
+  for (const label of ["Edit storyboard", "Style and references", "Character and location continuity", "Preview sequence", "Compare versions", "Continuity issue checklist", "Generation estimates"]) {
     await expect(page.getByText(label, { exact: true })).toHaveCount(0);
   }
   await expect(page.getByLabel("palette", { exact: true })).toHaveCount(0);

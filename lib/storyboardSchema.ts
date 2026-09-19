@@ -80,6 +80,7 @@ export const generatedStoryboardPanelSchema = z.object({
 }).strict();
 
 export const visualReferenceSchema = z.object({
+  source: z.enum(["upload", "generated"]).optional(),
   id: z.string().min(1).max(100),
   imageUrl: z.string().max(8_000_000).refine(value => /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value) || /^\/api\/mock-panel-image\?seed=\d+$/.test(value), "Use an embedded PNG, JPEG or WebP reference."),
   purpose: z.enum(["style", "character", "location", "composition"]),
@@ -87,6 +88,7 @@ export const visualReferenceSchema = z.object({
 }).strict();
 
 const renderedPanelSchema = generatedStoryboardPanelSchema.extend({
+  imageRefinement: z.string().trim().max(1000).optional(),
   durationSeconds: z.number().min(0.1).max(600).optional(),
   panelId: z.string().min(1).max(100).optional(),
   imageApproved: z.boolean().optional(),

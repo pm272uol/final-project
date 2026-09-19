@@ -53,6 +53,50 @@ describe("POST /api/generate-panel-image", () => {
     );
   });
 
+  it("forwards refinement instructions and the current image as the first reference", async () => {
+    const generateImage = vi.fn(async (prompt: string) => ({
+      imageUrl: "/api/mock-panel-image?seed=42", provider: "mock" as const, model: "mock",
+      prompt, width: 1024, height: 576, generatedAt: new Date().toISOString(), durationMs: 1,
+    }));
+    vi.spyOn(providerFactory, "createImageGenerationService").mockReturnValue({ name: "mock", model: "mock", generateImage });
+    const response = await POST(jsonRequest({ ...validRequest(), refinement: {
+      instructions: "Make the paper boat red.", imageUrl: "/api/mock-panel-image?seed=7",
+    } }));
+    expect(response.status).toBe(200);
+    expect(generateImage).toHaveBeenCalledWith(expect.stringContaining("Make the paper boat red."),
+      expect.objectContaining({ references: [expect.objectContaining({ purpose: "composition", imageUrl: "/api/mock-panel-image?seed=7" })] }), expect.any(AbortSignal));
+    expect((await response.json()).imagePrompt).toContain("requested change takes priority");
+  });
+
+  it.each([
+    { instructions: " ", imageUrl: "/api/mock-panel-image?seed=7" },
+    { instructions: "x".repeat(1001), imageUrl: "/api/mock-panel-image?seed=7" },
+    { instructions: "Red boat", imageUrl: "https://example.com/private-image" },
+  ])("rejects invalid refinement data before calling the provider", async refinement => {
+    const factory = vi.spyOn(providerFactory, "createImageGenerationService");
+    expect((await POST(jsonRequest({ ...validRequest(), refinement }))).status).toBe(400);
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("passes all uploaded references through to the image provider (refinement: %s)", async refining => {
+    const generateImage = vi.fn(async (prompt: string) => ({
+      imageUrl: "/api/mock-panel-image?seed=42", provider: "mock" as const, model: "mock",
+      prompt, width: 1024, height: 576, generatedAt: new Date().toISOString(), durationMs: 1,
+    }));
+    vi.spyOn(providerFactory, "createImageGenerationService").mockReturnValue({ name: "mock", model: "mock", generateImage });
+    const references = Array.from({ length: 4 }, (_, index) => ({
+      id: `upload-${index}`, source: "upload", purpose: "style", approved: true, version: 1,
+      imageUrl: "data:image/jpeg;base64,YQ==",
+    }));
+    const response = await POST(jsonRequest({ ...validRequest(), references,
+      refinement: refining ? { instructions: "Match the reference colours.", imageUrl: "/api/mock-panel-image?seed=7" } : undefined,
+    }));
+    expect(response.status).toBe(200);
+    expect(generateImage).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      references: refining ? [expect.objectContaining({ purpose: "composition", imageUrl: "/api/mock-panel-image?seed=7" }), ...references] : references,
+    }), expect.any(AbortSignal));
+  });
+
   it("returns a friendly malformed JSON error", async () => {
     const response = await POST(
       new Request("http://localhost/api/generate-panel-image", {

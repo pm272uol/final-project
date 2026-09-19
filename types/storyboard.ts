@@ -61,7 +61,7 @@ export type ShotType =
   | "point-of-view shot"
   | "tracking shot";
 
-export type VisualReference = { id: string; imageUrl: string; purpose: "style" | "character" | "location" | "composition"; entityId?: string; approved: boolean; version: number };
+export type VisualReference = { id: string; imageUrl: string; purpose: "style" | "character" | "location" | "composition"; source?: "upload" | "generated"; entityId?: string; approved: boolean; version: number };
 
 export type StoryboardPanel = {
   panelId?: string;
@@ -71,6 +71,7 @@ export type StoryboardPanel = {
   imageApproved?: boolean;
   imageSelected?: boolean;
   imageHistory?: Omit<StoryboardPanel, "imageHistory">[];
+  imageRefinement?: string;
   characterIds?: string[];
   locationIds?: string[];
   visibleProps?: string[];
@@ -149,6 +150,7 @@ export type ImageGenerationResult = {
 };
 
 export type PanelImageGenerationRequest = {
+  refinement?: { instructions: string; imageUrl: string };
   references?: VisualReference[];
   seed?: number;
   panel: StoryboardPanel;

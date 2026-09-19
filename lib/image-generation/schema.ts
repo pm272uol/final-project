@@ -16,11 +16,18 @@ export const storyboardImageContextSchema = z.object({
 }).strict() satisfies z.ZodType<StoryboardImageContext>;
 
 export const panelImageGenerationRequestSchema = z.object({
+  refinement: z.object({
+    instructions: z.string().trim().min(1).max(1000),
+    imageUrl: visualReferenceSchema.shape.imageUrl,
+  }).strict().optional(),
   references: z.array(visualReferenceSchema.refine(r => r.approved, "Approve references before sending them.")).max(5, "Klein supports at most five references per shot. Unapprove an unused reference.").optional(),
   seed: z.number().int().min(0).max(4294967295).optional(),
   panel: storyboardPanelSchema,
   imageContext: storyboardImageContextSchema,
 }).strict().superRefine((request, ctx) => {
+  if (request.refinement && (request.references?.length ?? 0) > 4) {
+    ctx.addIssue({ code: "custom", path: ["references"], message: "Leave one reference slot for the image being refined." });
+  }
   const panel = resolveShotReferences(request.panel, request.imageContext);
   for (const message of shotPromptIssues(panel, request.imageContext)) {
     ctx.addIssue({ code: "custom", path: ["panel"], message });

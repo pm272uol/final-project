@@ -12,6 +12,7 @@ export type ReferenceImageDraft = {
   id: string;
   blob: Blob;
   previewUrl: string;
+  imageUrl: string;
   purpose: (typeof REFERENCE_PURPOSES)[number];
 };
 
@@ -21,19 +22,27 @@ export function ReferenceImagePanel({
   disabled,
   onReferencesChange,
   onSummaryChange,
+  onBusyChange,
 }: {
   references: ReferenceImageDraft[];
   summary: string;
   disabled: boolean;
   onReferencesChange: (references: ReferenceImageDraft[]) => void;
   onSummaryChange: (summary: string) => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const referencesRef = useRef(references);
   const [instructions, setInstructions] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState("");
   referencesRef.current = references;
+
+  useEffect(() => {
+    onBusyChange?.(preparing || analyzing);
+    return () => onBusyChange?.(false);
+  }, [preparing, analyzing, onBusyChange]);
 
   useEffect(
     () => () => {
@@ -46,6 +55,7 @@ export function ReferenceImagePanel({
 
   async function addFiles(files: FileList | null) {
     if (!files) return;
+    setPreparing(true);
     setError("");
 
     const availableSlots = MAX_REFERENCE_IMAGES - references.length;
@@ -71,10 +81,17 @@ export function ReferenceImagePanel({
 
       try {
         const blob = await sanitizeImage(file);
+        const imageUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
         additions.push({
           id: crypto.randomUUID(),
           blob,
           previewUrl: URL.createObjectURL(blob),
+          imageUrl,
           purpose: "Mood",
         });
       } catch {
@@ -87,6 +104,7 @@ export function ReferenceImagePanel({
       onSummaryChange("");
     }
     if (inputRef.current) inputRef.current.value = "";
+    setPreparing(false);
   }
 
   function updatePurpose(
@@ -162,11 +180,11 @@ export function ReferenceImagePanel({
   }
 
   return (
-    <fieldset disabled={disabled} className="min-w-0">
+    <fieldset disabled={disabled || analyzing || preparing} className="min-w-0">
       <legend className="label">03 / Visual references</legend>
       <p className="mb-3 text-xs leading-relaxed text-ink/55">
-        Images are stripped of metadata in your browser and sent to the configured
-        analysis provider. Cloud mode sends them to an external service.
+        Uploaded images guide every image you generate. Without uploads, the first
+        generated image guides the rest. Images are stripped of metadata before being sent to the image provider.
       </p>
 
       {references.length > 0 ? (
@@ -249,7 +267,7 @@ export function ReferenceImagePanel({
             : "cursor-pointer hover:bg-acid"
         }`}
       >
-        {references.length >= MAX_REFERENCE_IMAGES
+        {preparing ? "Preparing references…" : references.length >= MAX_REFERENCE_IMAGES
           ? "Maximum of 4 references added"
           : `Add sketches or reference images (${references.length}/4)`}
       </label>
@@ -280,10 +298,10 @@ export function ReferenceImagePanel({
             data-testid="analyze-references"
           >
             {analyzing
-              ? "Analyzing locally..."
+              ? "Analyzing references..."
               : summary
                 ? "Re-analyze references"
-                : "Analyze references locally"}
+                : "Analyze references"}
           </button>
         </div>
       ) : null}
@@ -301,12 +319,12 @@ export function ReferenceImagePanel({
             onChange={(event) => onSummaryChange(event.target.value)}
           />
           <p className="mt-1.5 text-[11px] text-ink/50">
-            Editable. Storyboard prompts use this summary, not the uploads.
+            Editable. This guides the storyboard text; the image model also receives your uploaded images.
           </p>
         </div>
       ) : references.length > 0 ? (
         <p className="mt-2 text-[11px] text-ink/50">
-          Analyze the references before generating the storyboard.
+          Ready to use for image generation. Analysis is optional and adds visual guidance to the storyboard text.
         </p>
       ) : null}
 

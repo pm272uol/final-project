@@ -7,7 +7,7 @@ test("exports a dedicated production PDF with shot images and paginated notes", 
   await expect(page.getByLabel("Duration", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Tone", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Deliverable", { exact: true })).toBeVisible();
-  await expect(page.locator("#reference-images")).toHaveCount(0);
+  await expect(page.getByText("Add visual references (optional)", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Project storage" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Autosave and recovery" })).toHaveCount(0);
   await page.getByLabel("Panels", { exact: true }).selectOption("4");

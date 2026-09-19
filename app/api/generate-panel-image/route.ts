@@ -57,14 +57,21 @@ export async function POST(request: Request) {
 
   try {
     const service = createImageGenerationService({ ...config, replicateModel: "black-forest-labs/flux-2-klein-4b" });
-    const { prompt, negativePrompt } = buildSdxlPrompt(
+    const { prompt: shotPrompt, negativePrompt } = buildSdxlPrompt(
       parsed.data.panel,
       parsed.data.imageContext,
     );
+    const refinement = parsed.data.refinement;
+    const prompt = refinement
+      ? `Refine the current storyboard image supplied as Image 1. Make this requested change: ${refinement.instructions}\nPreserve the composition, characters, setting and visual style except where the requested change requires otherwise. The requested change takes priority over conflicting details in the original shot description below. Return one finished frame.\nOriginal shot context: ${shotPrompt}`
+      : shotPrompt;
+    const references = refinement
+      ? [{ id: "refinement-source", imageUrl: refinement.imageUrl, purpose: "composition" as const, approved: true, version: 1 }, ...(parsed.data.references ?? [])]
+      : parsed.data.references;
     const result = await service.generateImage(
       prompt,
       {
-        references: parsed.data.references,
+        references,
         seed: parsed.data.seed ?? randomInt(0, 4294967296),
         width: 1024,
         height: 576,
@@ -76,7 +83,7 @@ export async function POST(request: Request) {
     const imageUrl = await persistProviderImage(result.imageUrl, request.signal);
     const dimensions = imageUrl.startsWith("data:image/") ? await sharp(Buffer.from(imageUrl.split(",")[1], "base64")).metadata() : undefined;
     const response: PanelImageGenerationResponse = {
-      imageReferenceIds: parsed.data.references?.map(r => `${r.id}@${r.version}`) ?? [],
+      imageReferenceIds: references?.map(r => `${r.id}@${r.version}`) ?? [],
       imageModelVersion: result.modelVersion,
       imageSettings: result.settings,
       imageBibleVersion: parsed.data.imageContext.visualBible.version,
