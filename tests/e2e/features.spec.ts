@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("exports a dedicated production PDF with shot images and paginated notes", async ({ page }, testInfo) => {
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await expect(page.getByRole("button", { name: "Export production PDF" })).toHaveCount(0);
   await expect(page.getByLabel("Genre", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Duration", { exact: true })).toBeVisible();

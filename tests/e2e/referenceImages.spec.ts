@@ -10,6 +10,7 @@ test("uploads guide every frame without analysis and removal restores the first-
     await route.continue();
   });
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByText("Add visual references (optional)", { exact: true }).click();
   await page.locator("#reference-images").setInputFiles([referenceFile, "evaluation/datasets/scenes/SCENE-02/scene-02.png"]);
   await expect(page.getByTestId("reference-image")).toHaveCount(2);
@@ -41,6 +42,7 @@ test("uploads added after generation guide both refinement and subsequent regene
     await route.continue();
   });
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByTestId("generate-button").click();
   await page.getByRole("button", { name: "Generate image for panel 1", exact: true }).click();
   await expect(page.getByRole("button", { name: "Refine image for panel 1", exact: true })).toBeEnabled();

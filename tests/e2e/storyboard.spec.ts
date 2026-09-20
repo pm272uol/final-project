@@ -7,6 +7,7 @@ async function expand(page: Page, title: string) {
 
 test("generates a complete scene-aware storyboard package", async ({ page }) => {
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
 
   await page
     .getByLabel("01 / Scene idea", { exact: true })
@@ -96,6 +97,7 @@ test("isolates a failed panel image and allows retry", async ({ page }) => {
   });
 
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByTestId("generate-button").click();
   await expect(page.getByTestId("storyboard-panel")).toHaveCount(6);
 
@@ -136,6 +138,7 @@ test("shows generated schema validation failures clearly", async ({ page }) => {
   });
 
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByTestId("generate-button").click();
 
   const error = page.getByTestId("generation-error");
@@ -160,6 +163,7 @@ for (const viewport of [
       height: viewport.height,
     });
     await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
 
     const hasHorizontalOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
@@ -172,6 +176,7 @@ for (const viewport of [
 
 test("preserves existing images when a replacement fails", async ({ page }) => {
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByLabel("Panels", { exact: true }).selectOption("4");
   await page.getByTestId("generate-button").click();
   await page.getByRole("button", { name: "Generate image for panel 1", exact: true }).click();
@@ -194,6 +199,7 @@ test("preserves existing images when a replacement fails", async ({ page }) => {
 
 test("cancels the batch without discarding the reference or starting remaining shots", async ({ page }) => {
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByLabel("Panels", { exact: true }).selectOption("4");
   await page.getByTestId("generate-button").click();
   await page.getByRole("button", { name: "Generate image for panel 1", exact: true }).click();
@@ -219,6 +225,7 @@ test("shows production notes and renders a whole board without extra options", a
     await route.continue();
   });
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByLabel("Panels", { exact: true }).selectOption("4");
   await page.getByTestId("generate-button").click();
   await expect(page.getByTestId("storyboard-panel")).toHaveCount(4);
@@ -255,6 +262,7 @@ test("uses the first successful image even out of order and resets it for a new 
     await route.continue();
   });
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByLabel("Panels", { exact: true }).selectOption("4");
   await page.getByTestId("generate-button").click();
   await page.getByRole("button", { name: "Generate image for panel 3", exact: true }).click();

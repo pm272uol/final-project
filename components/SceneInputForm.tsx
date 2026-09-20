@@ -25,6 +25,7 @@ type Props = {
   onVisualSummaryChange: (summary: string) => void;
   hasStoryboard: boolean;
   hasUnappliedChanges: boolean;
+  onBusyChange?: (busy: boolean) => void;
 };
 
 export function SceneInputForm({
@@ -39,6 +40,7 @@ export function SceneInputForm({
   onVisualSummaryChange,
   hasStoryboard,
   hasUnappliedChanges,
+  onBusyChange,
 }: Props) {
   const [generatingIdea, setGeneratingIdea] = useState(false);
   const [ideaError, setIdeaError] = useState("");
@@ -46,6 +48,10 @@ export function SceneInputForm({
   const ideaRequest = useRef<AbortController | null>(null);
   const recentIdeas = useRef<RecentSceneIdea[]>([]);
   const [previousIdea, setPreviousIdea] = useState<{ before: string; generated: string } | null>(null);
+  useEffect(() => {
+    onBusyChange?.(generatingIdea || referencesBusy);
+    return () => onBusyChange?.(false);
+  }, [generatingIdea, referencesBusy, onBusyChange]);
 
   // A changed brief or an unmounted form must not receive a stale suggestion.
   useEffect(() => () => ideaRequest.current?.abort(), [input]);

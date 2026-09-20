@@ -14,6 +14,7 @@ import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { GenerationStatus } from "@/components/GenerationStatus";
 import { JsonPreview } from "@/components/JsonPreview";
 import { SceneInputForm } from "@/components/SceneInputForm";
+import { StartOverButton } from "@/components/StartOverButton";
 import { StoryboardOutput } from "@/components/StoryboardOutput";
 import { evaluateStoryboard } from "@/lib/evaluator";
 import { DEFAULT_INPUT } from "@/lib/storyboardOptions";
@@ -27,6 +28,8 @@ import type {
 } from "@/types/storyboard";
 
 export default function Home() {
+  const [formRevision, setFormRevision] = useState(0);
+  const [formBusy, setFormBusy] = useState(false);
   const [outputRevision, setOutputRevision] = useState(0);
   const [estimateConfig, setEstimateConfig] = useState<ImageEstimateConfig | null>(null);
   useEffect(() => {
@@ -37,7 +40,7 @@ export default function Home() {
     }).catch(() => {});
     return () => controller.abort();
   }, []);
-  const [input, setInput] = useState<StoryboardInput>(DEFAULT_INPUT);
+  const [input, setInput] = useState<StoryboardInput>({ ...DEFAULT_INPUT, sceneIdea: "" });
   const [references, setReferences] = useState<ReferenceImageDraft[]>([]);
   const [visualSummary, setVisualSummary] = useState("");
   const [projectInput, setProjectInput] = useState<StoryboardInput | null>(null);
@@ -93,6 +96,27 @@ export default function Home() {
     references: references.map(({ id, blob, purpose }) => ({ id, blob, purpose })),
   }), [input, projectInput, storyboard, generationMetadata, visualSummary, references]);
   const recovery = useWorkspaceRecovery(workspace, restoreWorkspace);
+  async function startOver() {
+    if (!recovery.ready || loading || batchGenerating || formBusy || imageGenerationControllers.current.size) return;
+    const freshInput = { ...DEFAULT_INPUT, sceneIdea: "" };
+    await recovery.resetWorkspace(() => {
+      setInput(freshInput);
+      setProjectInput(null);
+      setStoryboard(null);
+      setGenerationMetadata(null);
+      setReferences([]);
+      setVisualSummary("");
+      setRequestedPanelCount(DEFAULT_INPUT.panelCount);
+      setActivePanelCount(DEFAULT_INPUT.panelCount);
+      setError("");
+      setErrorDetails([]);
+      setStreamedOutput("");
+      setProgressMessage("Preparing the storyboard prompt...");
+      setStatusMessage("Workspace cleared. Ready for a new scene idea.");
+      setOutputRevision(value => value + 1);
+      setFormRevision(value => value + 1);
+    });
+  }
   const hasUnappliedChanges = Boolean(projectInput && (
     Object.entries(input).some(([key, value]) => key !== "visualReferenceSummary" && value !== projectInput[key as keyof StoryboardInput]) ||
     visualSummary.trim() !== (projectInput.visualReferenceSummary ?? "").trim()
@@ -379,13 +403,19 @@ export default function Home() {
             <p className="mono text-[10px] uppercase tracking-[0.16em] text-rust">
               Scene brief
             </p>
-            <h2 className="display mt-1 text-4xl">Set the frame</h2>
-            <p role="status" data-testid="workspace-save-status" className="mt-2 text-xs text-ink/55">
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <h2 className="display text-4xl">Set the frame</h2>
+              {storyboard && <StartOverButton disabled={!recovery.ready || loading || batchGenerating || formBusy || storyboard.storyboard.some(p => p.imageStatus === "generating")}
+                onStartOver={startOver} />}
+            </div>
+            {recovery.status && <p role="status" data-testid="workspace-save-status" className="mt-2 text-xs text-ink/55">
               {recovery.status}{recovery.saveFailed && <> <button type="button" onClick={recovery.retrySave} className="font-bold underline">Retry save</button></>}
-            </p>
+            </p>}
           </div>
           <fieldset disabled={!recovery.ready || batchGenerating || storyboard?.storyboard.some(p => p.imageStatus === "generating")} >
           <SceneInputForm
+            key={formRevision}
+            onBusyChange={setFormBusy}
             input={input}
             loading={loading}
             onChange={setInput}

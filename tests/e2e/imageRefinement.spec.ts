@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function createBoard(page: Page) {
   await page.goto("/");
+  await page.getByLabel("01 / Scene idea", { exact: true }).fill("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
   await page.getByLabel("Panels", { exact: true }).selectOption("4");
   await page.getByTestId("generate-button").click();
   await page.getByTestId("generate-all-images").click();

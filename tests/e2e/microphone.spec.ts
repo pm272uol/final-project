@@ -37,9 +37,9 @@ test("records, stops the microphone and transcribes through the selected provide
   await expect(page.getByLabel("Review transcript")).toHaveValue("A recorded scene.");
   expect(requests).toBe(1);
   expect(await page.evaluate(() => (window as typeof window & { microphoneStream: MediaStream }).microphoneStream.getTracks().every(track => track.readyState === "ended"))).toBe(true);
-  await expect(page.getByLabel("01 / Scene idea", { exact: true })).toHaveValue("A tired astronaut discovers a tiny plant growing inside an abandoned space station.");
+  await expect(page.getByLabel("01 / Scene idea", { exact: true })).toHaveValue("");
   await page.getByRole("button", { name: "Add to scene idea" }).click();
-  await expect(page.getByLabel("01 / Scene idea", { exact: true })).toHaveValue("A tired astronaut discovers a tiny plant growing inside an abandoned space station.\n\nA recorded scene.");
+  await expect(page.getByLabel("01 / Scene idea", { exact: true })).toHaveValue("A recorded scene.");
 });
 
 test("cancel releases the microphone and sends no transcription", async ({ page }) => {
