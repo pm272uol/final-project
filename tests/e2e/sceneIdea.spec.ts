@@ -5,7 +5,7 @@ test("generates an editable scene idea from an empty textbox without submitting 
   let finish: () => void = () => {};
   const pending = new Promise<void>(resolve => { finish = resolve; });
   await page.route("**/api/generate-scene-idea", async route => {
-    expect(route.request().postData()).toBeNull();
+    expect(route.request().postDataJSON()).toEqual({ recentSuggestions: [] });
     await pending;
     await route.fulfill({ json: { sceneIdea } });
   });
@@ -26,6 +26,27 @@ test("generates an editable scene idea from an empty textbox without submitting 
   await scene.fill(`${sceneIdea} It begins to ring.`);
   await expect(scene).toHaveValue(`${sceneIdea} It begins to ring.`);
   expect(storyboardRequested).toBe(false);
+});
+
+test("repeat clicks remember only the last six suggestions, never the brief or scene settings", async ({ page }) => {
+  const requests: Array<{ recentSuggestions: Array<{ sceneIdea: string }> }> = [];
+  await page.route("**/api/generate-scene-idea", route => {
+    requests.push(route.request().postDataJSON());
+    return route.fulfill({ json: { sceneIdea: `Generated idea ${requests.length}.`, variation: { cast: 1, setting: 1, action: 1, tone: 1 } } });
+  });
+  await page.goto("/");
+  const scene = page.getByLabel("01 / Scene idea", { exact: true });
+  await scene.fill("My own private brief, unrelated to suggestions.");
+  await page.getByLabel("Genre", { exact: true }).selectOption("Fantasy");
+  for (let i = 1; i <= 8; i++) {
+    await page.getByRole("button", { name: "Generate scene idea", exact: true }).click();
+    await expect(scene).toHaveValue(`Generated idea ${i}.`);
+  }
+  expect(requests[0]).toEqual({ recentSuggestions: [] });
+  expect(requests[7].recentSuggestions.map(item => item.sceneIdea)).toEqual(Array.from({ length: 6 }, (_, i) => `Generated idea ${i + 2}.`));
+  expect(requests.every(request => Object.keys(request).join() === "recentSuggestions")).toBe(true);
+  expect(JSON.stringify(requests)).not.toContain("private brief");
+  expect(JSON.stringify(requests)).not.toContain("Fantasy");
 });
 
 test("keeps the existing scene on failure and allows retry", async ({ page }) => {

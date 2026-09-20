@@ -11,6 +11,7 @@ import {
 import { VoiceNotePanel } from "@/components/VoiceNotePanel";
 import { ReferenceImagePanel, type ReferenceImageDraft } from "@/components/ReferenceImagePanel";
 import type { StoryboardInput } from "@/types/storyboard";
+import { sceneIdeaVariationSchema, type RecentSceneIdea } from "@/lib/sceneIdea";
 
 type Props = {
   input: StoryboardInput;
@@ -43,6 +44,7 @@ export function SceneInputForm({
   const [ideaError, setIdeaError] = useState("");
   const [referencesBusy, setReferencesBusy] = useState(false);
   const ideaRequest = useRef<AbortController | null>(null);
+  const recentIdeas = useRef<RecentSceneIdea[]>([]);
   const [previousIdea, setPreviousIdea] = useState<{ before: string; generated: string } | null>(null);
 
   // A changed brief or an unmounted form must not receive a stale suggestion.
@@ -57,6 +59,8 @@ export function SceneInputForm({
     try {
       const response = await fetch("/api/generate-scene-idea", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recentSuggestions: recentIdeas.current }),
         signal: controller.signal,
       });
       const data = await response.json();
@@ -67,6 +71,10 @@ export function SceneInputForm({
         throw new Error("The generated scene idea was invalid. Try again.");
       }
       if (!controller.signal.aborted) {
+        const variation = sceneIdeaVariationSchema.safeParse(data.variation);
+        recentIdeas.current = [...recentIdeas.current, {
+          sceneIdea: data.sceneIdea.trim(), ...(variation.success ? { variation: variation.data } : {}),
+        }].slice(-6);
         setPreviousIdea({ before: input.sceneIdea, generated: data.sceneIdea.trim() });
         onChange({ ...input, sceneIdea: data.sceneIdea.trim() });
       }

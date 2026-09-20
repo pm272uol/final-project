@@ -3,16 +3,26 @@ import { z } from "zod";
 import { getAppConfig } from "@/lib/config";
 import { createLLMProvider } from "@/lib/llm/create-provider";
 import { LLMError } from "@/lib/llm/errors";
-import { storyboardInputSchema } from "@/lib/storyboardSchema";
+import { chooseSceneIdeaVariation, mockSceneIdea, sceneIdeaPrompt, sceneIdeaRequestSchema } from "@/lib/sceneIdea";
 
-const outputSchema = z.object({ sceneIdea: storyboardInputSchema.shape.sceneIdea }).strict();
+const outputSchema = z.object({ sceneIdea: z.string().trim().min(1).max(400) }).strict();
 
 export async function POST(request: Request) {
   try {
+    const body = await request.text();
+    if (body.length > 16_384) return NextResponse.json({ error: "Scene idea request is too large." }, { status: 413 });
+    let value: unknown;
+    try { value = body.trim() ? JSON.parse(body) : {}; }
+    catch { return NextResponse.json({ error: "Invalid scene idea request." }, { status: 400 }); }
+    const parsed = sceneIdeaRequestSchema.safeParse(value);
+    if (!parsed.success) return NextResponse.json({ error: "Invalid scene idea request." }, { status: 400 });
+    const { recentSuggestions } = parsed.data;
+    const variation = chooseSceneIdeaVariation(recentSuggestions);
     const config = getAppConfig();
     if (config.provider === "mock") {
       return NextResponse.json({
-        sceneIdea: "A caretaker finds a forgotten suitcase at an empty train station. Inside is a photograph of the same platform, taken tomorrow.",
+        sceneIdea: mockSceneIdea(recentSuggestions),
+        variation,
         mode: "mock",
       });
     }
@@ -25,12 +35,13 @@ export async function POST(request: Request) {
       maxTokens: 500,
       messages: [
         {
-          role: "user",
-          content: "Generate one simple, original scene idea as a starting point for a short film. Choose any subject and setting. Use 1–2 short sentences with a clear visual action and a small conflict, surprise, or discovery. Keep it easy to imagine and under 400 characters. Return only a JSON object with a sceneIdea string; no title, headings, commentary, or shot list.",
+          role: "system",
+          content: sceneIdeaPrompt(variation),
         },
+        { role: "user", content: JSON.stringify({ recentSuggestionsToAvoid: recentSuggestions.map(item => item.sceneIdea) }) },
       ],
     });
-    return NextResponse.json(result.data);
+    return NextResponse.json({ ...result.data, variation });
   } catch (error) {
     return NextResponse.json({
       error: error instanceof LLMError
