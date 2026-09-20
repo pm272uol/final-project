@@ -5,7 +5,7 @@ import { createLLMProvider } from "@/lib/llm/create-provider";
 import { LLMError } from "@/lib/llm/errors";
 import { chooseSceneIdeaVariation, mockSceneIdea, sceneIdeaPrompt, sceneIdeaRequestSchema } from "@/lib/sceneIdea";
 
-const outputSchema = z.object({ sceneIdea: z.string().trim().min(1).max(400) }).strict();
+const outputSchema = z.object({ sceneIdea: z.string().trim().min(1).max(200) }).strict();
 
 export async function POST(request: Request) {
   try {

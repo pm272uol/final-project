@@ -27,10 +27,10 @@ describe("POST /api/generate-scene-idea", () => {
     expect(sent.messages[0].role).toBe("system");
     expect(sent.messages[0].content).toContain("one simple, original scene idea");
     expect(JSON.parse(sent.messages[1].content)).toEqual({ recentSuggestionsToAvoid: [] });
-    expect(sent.format.properties.sceneIdea.maxLength).toBe(400);
+    expect(sent.format.properties.sceneIdea.maxLength).toBe(200);
   });
 
-  it.each(["", "x".repeat(401)])("rejects unusable model output", async sceneIdea => {
+  it.each(["", "x".repeat(201)])("rejects unusable model output", async sceneIdea => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
       model: "test-model", done: true, message: { content: JSON.stringify({ sceneIdea }) },
     })));

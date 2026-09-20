@@ -113,9 +113,14 @@ export function SceneInputForm({
     >
       <fieldset disabled={loading} className="min-w-0 space-y-6">
       <div>
-        <label className="label" htmlFor="sceneIdea">
-          01 / Scene idea
-        </label>
+        <div className="flex items-baseline justify-between gap-3">
+          <label className="label" htmlFor="sceneIdea">
+            01 / Scene idea
+          </label>
+          {previousIdea && input.sceneIdea === previousIdea.generated && <button type="button" disabled={loading || generatingIdea}
+            className="text-xs font-bold text-ink/65 underline underline-offset-2 hover:text-ink disabled:opacity-50"
+            onClick={() => { update("sceneIdea", previousIdea.before); setPreviousIdea(null); }}>Undo</button>}
+        </div>
         <textarea
           id="sceneIdea"
           className="field min-h-36 resize-y text-base leading-relaxed"
@@ -160,10 +165,6 @@ export function SceneInputForm({
           <VoiceNotePanel disabled={loading || generatingIdea} remainingChars={remainingCharacters - (input.sceneIdea.trim() ? 2 : 0)} onAppend={(text) => update("sceneIdea", [input.sceneIdea.trim(), text].filter(Boolean).join("\n\n"))} />
         </div>
         <span role="status" className="sr-only">{generatingIdea ? "Generating a scene idea." : ""}</span>
-        {previousIdea && input.sceneIdea === previousIdea.generated && <p className="mt-2 text-xs text-ink/65">
-          New idea added. <button type="button" disabled={loading || generatingIdea} className="font-bold underline underline-offset-2 disabled:opacity-50"
-            onClick={() => { update("sceneIdea", previousIdea.before); setPreviousIdea(null); }}>Undo</button>
-        </p>}
         {ideaError ? <p role="alert" className="mt-2 text-xs text-rust">{ideaError}</p> : null}
       </div>
 
