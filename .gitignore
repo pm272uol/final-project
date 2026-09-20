@@ -246,4 +246,3 @@ evaluation/.cache/
 # Local speech recognition environment
 .venv-asr/
 .cache/whisper/
-.venv-video/

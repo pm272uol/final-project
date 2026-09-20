@@ -40,7 +40,6 @@
   ],
   "exclude": [
     ".venv-asr",
-    ".venv-video",
     ".cache",
     "node_modules"
   ]

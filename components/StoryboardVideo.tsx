@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { StoryboardPackage } from "@/types/storyboard";
-import { storyboardVideoShots, VIDEO_MODEL, VIDEO_PRESETS, type VideoJob, type VideoRequest } from "@/lib/video-generation/options";
+import { hasVideoImage, storyboardVideoShots, VIDEO_MODEL, VIDEO_PRESETS, type VideoJob, type VideoRequest } from "@/lib/video-generation/options";
 
 export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage }) {
-  const [available, setAvailable] = useState<{ local: boolean; replicate: boolean } | null>(null);
-  const [provider, setProvider] = useState<VideoRequest["provider"]>("replicate");
+  const [available, setAvailable] = useState<{ replicate: boolean } | null>(null);
   const [quality, setQuality] = useState<VideoRequest["quality"]>("preview");
   const [seed, setSeed] = useState(42);
   const [job, setJob] = useState<VideoJob | null>(null);
@@ -26,7 +25,6 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
       const config = await response.json();
       if (!controller.signal.aborted) {
         setAvailable(config);
-        setProvider(config.replicate ? "replicate" : "local");
       }
     }).catch(() => { if (!controller.signal.aborted) setError("Could not load video configuration. Reload to retry."); });
     return () => {
@@ -70,9 +68,9 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
     setStarting(true);
     setError("");
     try {
-      const shots = storyboardVideoShots(storyboard);
+      const shots = storyboardVideoShots({ ...storyboard, storyboard: previewOnly ? storyboard.storyboard.slice(0, 1) : storyboard.storyboard });
       const response = await fetch("/api/videos", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, quality, seed, shots: previewOnly ? shots.slice(0, 1) : shots }) });
+        body: JSON.stringify({ quality, seed, shots }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not start video generation.");
       if (!mounted.current) { await fetch(`/api/videos/${result.id}`, { method: "DELETE" }); return; }
@@ -93,26 +91,22 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
   }
 
   const preset = VIDEO_PRESETS[quality];
+  const firstReady = Boolean(storyboard.storyboard[0] && hasVideoImage(storyboard.storyboard[0]));
+  const allReady = storyboard.storyboard.length > 0 && storyboard.storyboard.every(hasVideoImage);
   return <section className="paper-card space-y-4 p-5" aria-label="Experimental storyboard video">
     <div className="flex flex-wrap items-baseline gap-3">
       <h2 className="display text-3xl">Storyboard to video</h2>
       <span className="mono border border-rust px-2 py-1 text-[10px] uppercase text-rust">Experimental</span>
     </div>
     <p className="text-sm leading-relaxed text-ink/70">
-      {VIDEO_MODEL} generates silent motion from your shot descriptions. Panel images are not used as input,
-      so appearances may differ. Each shot has a fixed length; the video does not follow the script’s timing.
+      {VIDEO_MODEL} animates your rendered panel images in the cloud with Replicate.
+      Each silent shot lasts about 5 seconds; the video does not follow the script’s timing.
     </p>
     <div className="flex flex-wrap items-end gap-4">
-      <label className="grid gap-1 text-sm">Video backend
-        <select value={provider} disabled={busy} onChange={event => setProvider(event.target.value as VideoRequest["provider"])} className="border border-ink bg-paper p-2">
-          <option value="replicate">Cloud · Replicate{available && !available.replicate ? " (setup needed)" : ""}</option>
-          <option value="local">Local · MLX{available && !available.local ? " (setup needed)" : ""}</option>
-        </select>
-      </label>
       <label className="grid gap-1 text-sm">Video quality
         <select value={quality} disabled={busy} onChange={event => setQuality(event.target.value as VideoRequest["quality"])} className="border border-ink bg-paper p-2">
-          <option value="preview">Quick draft · 2 seconds per shot</option>
-          <option value="standard">Standard · 5 seconds per shot</option>
+          <option value="preview">Draft · 480p</option>
+          <option value="standard">Standard · 720p</option>
         </select>
       </label>
       <label className="grid gap-1 text-sm">Video seed
@@ -120,16 +114,17 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
       </label>
     </div>
     <p className="text-sm text-ink/70">
-      {provider === "replicate" ? "Cloud generation uses your Replicate credit." : "Local generation uses your Mac’s GPU and can take many minutes per shot. Keep the model drive connected."}
-      {" "}Full storyboard: {storyboard.storyboard.length} shots, approximately {Math.round(storyboard.storyboard.length * preset.frames / preset.fps)} seconds at 480p.
-      {quality === "preview" && " Quick drafts use fewer steps and may look rough."}
+      Your panel images and motion prompts are sent to Replicate. Generation uses your Replicate credit.
+      {" "}Full storyboard: {storyboard.storyboard.length} shots, approximately {Math.round(storyboard.storyboard.length * preset.frames / preset.fps)} seconds at {preset.resolution}.
+      {" "}Estimated cost: ${(storyboard.storyboard.length * preset.costUsd).toFixed(3)} USD; first-shot preview: ${preset.costUsd}.
     </p>
-    {available && !available[provider] && <p className="text-sm text-rust">
-      {provider === "local" ? "Local setup needed: mount the model drive and follow docs/video-generation.md." : "Add REPLICATE_API_TOKEN to the server environment to enable cloud video."}
+    {!allReady && <p className="text-sm text-ink/70">Render panel images before making a video. Preview needs the first panel; the full video needs every panel. Mock placeholders cannot be animated.</p>}
+    {available && !available.replicate && <p className="text-sm text-rust">
+      Add REPLICATE_API_TOKEN to the server environment to enable cloud video.
     </p>}
     <div className="flex flex-wrap gap-3">
-      <button type="button" disabled={busy || !available?.[provider]} onClick={() => void generate(true)} className="border border-ink px-3 py-2 text-sm disabled:opacity-50">Preview first shot</button>
-      <button type="button" disabled={busy || !available?.[provider]} onClick={() => void generate(false)} className="border border-ink bg-acid px-3 py-2 text-sm font-bold disabled:opacity-50">Generate storyboard video</button>
+      <button type="button" disabled={busy || !available?.replicate || !firstReady} onClick={() => void generate(true)} className="border border-ink px-3 py-2 text-sm disabled:opacity-50">Preview first shot</button>
+      <button type="button" disabled={busy || !available?.replicate || !allReady} onClick={() => void generate(false)} className="border border-ink bg-acid px-3 py-2 text-sm font-bold disabled:opacity-50">Generate storyboard video</button>
       {busy && job && <button type="button" onClick={() => void cancel()} className="border border-ink px-3 py-2 text-sm">Cancel video</button>}
     </div>
     {starting && <p role="status" className="text-sm">Starting video generation…</p>}

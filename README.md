@@ -17,7 +17,7 @@ claim that final comparative model selection or human evaluation is complete.
 | Structured output | Zod 4 validates inputs, model JSON, and saved packages. Storyboard generation checks panel count and sequence and allows one correction attempt with the same model before returning invalid-output errors. |
 | Panel rendering | Deterministic mock images by default; hosted FLUX.2 Klein 4B on Replicate for reference-conditioned rendering. Sharp resizes reference inputs and processes image assets on the server. |
 | Voice notes | Whisper Large-v3-Turbo: local `mlx-whisper` through a Python worker on Apple Silicon, or hosted Groq transcription. English, completed-recording transcription with editable results. |
-| Experimental video | Wan 2.1 T2V 1.3B: local Apple MLX or hosted Replicate. Generate motion from shot descriptions, preview a shot, or download a stitched silent MP4. |
+| Experimental video | Wan 2.2 5B Fast on Replicate. Animate rendered panel images at 480p or 720p, preview a shot, or download a stitched silent MP4. |
 | Workspace | Storyboards and generated images live in the current page session. Project storage and autosave controls are not part of the workspace. No application database or account service is required. |
 | Export | A4 production PDFs using lazy-loaded jsPDF, available below the generated storyboard. |
 | Verification | Vitest for unit/API tests, Playwright with Chromium for browser workflows, ESLint, and TypeScript. Separate CLIs cover local model benchmarks and application-level local/hosted comparisons. |
@@ -130,11 +130,11 @@ limitations](docs/reference-image-workflow.md) for the recorded selection eviden
 
 ## Storyboard workflow
 
-An experimental **Storyboard to video** section supports **Wan 2.1 1.3B** locally
-with MLX or in the cloud with Replicate. Preview one shot before rendering the
-whole board. The model uses shot descriptions, so generated motion can differ
-from the panel images. Both modes need FFmpeg and a persistent Node server.
-See [video setup, external-drive downloads and limitations](docs/video-generation.md).
+An experimental **Storyboard to video** section animates rendered panel images
+with **Wan 2.2 5B Fast on Replicate**. Preview one shot before rendering the whole
+board at 480p or 720p. Inference is cloud-only; FFmpeg and a persistent Node server
+assemble the clips into a silent MP4. No local video model is needed.
+See [video setup and limitations](docs/video-generation.md).
 
 Describe the scene, choose the scene settings, and generate a storyboard. Generate
 all missing images or render individual shots. The first successfully generated

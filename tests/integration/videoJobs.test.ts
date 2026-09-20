@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -11,17 +12,19 @@ vi.mock("@/lib/video-generation/replicate", async importOriginal => ({
   ...await importOriginal<typeof import("@/lib/video-generation/replicate")>(), generateCloudClip: vi.fn(),
 }));
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0;
-describe.skipIf(!hasFfmpeg)("persistent video jobs with real FFmpeg", () => {
+describe.skipIf(!hasFfmpeg)("persistent video jobs with real FFmpeg", { timeout: 20_000 }, () => {
   let directory: string;
   let sample: Buffer;
-  const input: VideoRequest = { provider: "replicate", quality: "preview", seed: 42,
-    shots: [{ panelNumber: 1, prompt: "First shot" }, { panelNumber: 2, prompt: "Second shot" }] };
+  const input: VideoRequest = { quality: "preview", seed: 42,
+    shots: [{ panelNumber: 1, prompt: "First shot", image: "" }, { panelNumber: 2, prompt: "Second shot", image: "" }] };
   beforeAll(async () => {
     directory = await mkdtemp(path.join(tmpdir(), "wan-jobs-"));
     const file = path.join(directory, "sample.mp4");
     execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=red:s=32x32:r=16",
       "-frames:v", "33", "-c:v", "libx264", "-pix_fmt", "yuv420p", file]);
     sample = await readFile(file);
+    const image = await sharp({ create: { width: 32, height: 32, channels: 3, background: "red" } }).png().toBuffer();
+    input.shots.forEach(shot => { shot.image = `data:image/png;base64,${image.toString("base64")}`; });
   });
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
   afterAll(async () => { await rm(directory, { recursive: true, force: true }); });
@@ -40,6 +43,11 @@ describe.skipIf(!hasFfmpeg)("persistent video jobs with real FFmpeg", () => {
     const job = await startVideoJob(input);
     const result = await finished(job.id);
     expect(result.status).toBe("complete");
+    const sent = vi.mocked(generateCloudClip).mock.calls;
+    expect(sent.map(call => call[0].panelNumber)).toEqual([1, 2]);
+    expect(sent.map(call => call[2])).toEqual([42, 43]);
+    const metadata = await sharp(Buffer.from(sent[0][0].image.split(",")[1], "base64")).metadata();
+    expect(metadata).toMatchObject({ width: 832, height: 480, format: "jpeg" });
     expect(result.completedShots).toBe(2);
     expect(result.clips.map(c => c.panelNumber)).toEqual([1, 2]);
     const file = await videoFile(job.id, null);
@@ -49,6 +57,15 @@ describe.skipIf(!hasFfmpeg)("persistent video jobs with real FFmpeg", () => {
     expect(await videoFile(job.id, "2")).toBeUndefined();
     expect(await videoFile("../../private", null)).toBeUndefined();
     expect(await videoFile(job.id, "../request.json")).toBeUndefined();
+  });
+  it("validates every image before spending credit on the first shot", async () => {
+    setup();
+    const result = await finished((await startVideoJob({ ...input,
+      shots: [input.shots[0], { ...input.shots[1], image: "data:image/png;base64,YQ==" }],
+    })).id);
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("Panel 2 has an unreadable image");
+    expect(generateCloudClip).not.toHaveBeenCalled();
   });
   it("rejects simultaneous work and releases the slot only after cancellation", async () => {
     setup();

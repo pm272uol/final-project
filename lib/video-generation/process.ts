@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-/** Wait for actual process exit before releasing the job's GPU lock. */
+/** Wait for actual process exit before releasing the job's processing slot. */
 export function runVideoProcess(command: string, args: string[], signal: AbortSignal,
   env: NodeJS.ProcessEnv = process.env, onOutput?: (text: string) => void): Promise<void> {
   signal.throwIfAborted();

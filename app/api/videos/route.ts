@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { startVideoJob, videoConfiguration } from "@/lib/video-generation/jobs";
-import { videoRequestSchema } from "@/lib/video-generation/options";
+import { VIDEO_MAX_REQUEST_BYTES, videoRequestSchema } from "@/lib/video-generation/options";
 import { VideoError } from "@/lib/video-generation/replicate";
 
 export const runtime = "nodejs";
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > 100_000) {
+      if (size > VIDEO_MAX_REQUEST_BYTES) {
         await reader.cancel();
         return NextResponse.json({ error: "Video request is too large." }, { status: 413 });
       }
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch { return NextResponse.json({ error: "Invalid video request JSON." }, { status: 400 }); }
   const parsed = videoRequestSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid video settings or shot descriptions." }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: "Invalid video settings, shot descriptions or panel images." }, { status: 400 });
   try {
     return NextResponse.json(await startVideoJob(parsed.data), { status: 202, headers: { "Cache-Control": "no-store" } });
   } catch (error) {

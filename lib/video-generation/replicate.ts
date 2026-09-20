@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { VIDEO_PRESETS, type VideoRequest } from "./options";
 
-export const REPLICATE_WAN_VERSION = "121bbb762bf449889f090d36e3598c72c50c7a8cc2ce250433bc521a562aae61";
+export const REPLICATE_VIDEO_MODEL = "wan-video/wan-2.2-5b-fast";
 export class VideoError extends Error {
   constructor(message: string, public status = 502) { super(message); }
 }
@@ -12,13 +12,14 @@ const predictionSchema = z.object({
   output: z.string().nullable().optional(),
 });
 
-export function replicateVideoInput(prompt: string, quality: VideoRequest["quality"], seed: number) {
+export function replicateVideoInput(shot: VideoRequest["shots"][number], quality: VideoRequest["quality"], seed: number) {
   const preset = VIDEO_PRESETS[quality];
-  return { prompt, seed, frame_num: preset.frames, resolution: "480p", aspect_ratio: "16:9",
-    sample_steps: preset.steps, sample_shift: 5, sample_guide_scale: 5 };
+  return { prompt: shot.prompt, image: shot.image, seed, num_frames: preset.frames,
+    resolution: preset.resolution, aspect_ratio: "16:9", frames_per_second: preset.fps,
+    go_fast: true, sample_shift: 12 };
 }
 
-export async function generateCloudClip(prompt: string, quality: VideoRequest["quality"], seed: number,
+export async function generateCloudClip(shot: VideoRequest["shots"][number], quality: VideoRequest["quality"], seed: number,
   signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<string> {
   const token = process.env.REPLICATE_API_TOKEN?.trim();
   if (!token) throw new VideoError("Cloud video needs REPLICATE_API_TOKEN on the server.", 503);
@@ -40,9 +41,9 @@ export async function generateCloudClip(prompt: string, quality: VideoRequest["q
     signal.throwIfAborted();
     // Creation uses its own short timeout so an immediate cancellation can still
     // obtain the prediction ID and cancel the paid remote work.
-    let prediction = await read(await fetcher("https://api.replicate.com/v1/predictions", {
+    let prediction = await read(await fetcher(`https://api.replicate.com/v1/models/${REPLICATE_VIDEO_MODEL}/predictions`, {
       method: "POST", headers, signal: AbortSignal.timeout(30_000),
-      body: JSON.stringify({ version: REPLICATE_WAN_VERSION, input: replicateVideoInput(prompt, quality, seed) }),
+      body: JSON.stringify({ input: replicateVideoInput(shot, quality, seed) }),
     }));
     predictionId = prediction.id;
     for (;;) {

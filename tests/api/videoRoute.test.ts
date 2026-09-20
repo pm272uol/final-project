@@ -5,7 +5,7 @@ import { startVideoJob, videoConfiguration, getVideoJob, cancelVideoJob } from "
 import { VideoError } from "@/lib/video-generation/replicate";
 vi.mock("@/lib/video-generation/jobs", () => ({ startVideoJob: vi.fn(), videoConfiguration: vi.fn(), getVideoJob: vi.fn(), cancelVideoJob: vi.fn() }));
 afterEach(() => vi.resetAllMocks());
-const body = { provider: "local", quality: "preview", seed: 42, shots: [{ panelNumber: 1, prompt: "A cat walks." }] };
+const body = { quality: "preview", seed: 42, shots: [{ panelNumber: 1, prompt: "A cat walks.", image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=" }] };
 const req = (data: unknown) => new Request("http://localhost/api/videos", { method: "POST", body: JSON.stringify(data) });
 it("validates before starting work", async () => {
   expect((await POST(req({ ...body, shots: [] }))).status).toBe(400);
@@ -13,7 +13,9 @@ it("validates before starting work", async () => {
   expect(startVideoJob).not.toHaveBeenCalled();
 });
 it("rejects oversized requests even without content-length", async () => {
-  expect((await POST(req({ prompt: "x".repeat(100001) }))).status).toBe(413);
+  expect((await POST(new Request("http://localhost/api/videos", { method: "POST", duplex: "half", body: new ReadableStream({
+    start(controller) { for (let i = 0; i < 82; i++) controller.enqueue(new Uint8Array(1_000_000)); controller.close(); }
+  }) } as RequestInit))).status).toBe(413);
   expect(startVideoJob).not.toHaveBeenCalled();
 });
 it("returns accepted jobs without waiting for inference", async () => {
@@ -33,9 +35,9 @@ it("does not expose internal exception details", async () => {
   expect(await response.text()).not.toContain("private-secret");
 });
 it("exposes availability without credentials or filesystem paths", async () => {
-  vi.mocked(videoConfiguration).mockResolvedValue({ local: true, replicate: false });
+  vi.mocked(videoConfiguration).mockResolvedValue({ replicate: false });
   const response = await GET();
-  expect(await response.json()).toEqual({ local: true, replicate: false });
+  expect(await response.json()).toEqual({ replicate: false });
   expect(response.headers.get("cache-control")).toBe("no-store");
 });
 it("returns 404 for missing jobs and delegates cancellation", async () => {
