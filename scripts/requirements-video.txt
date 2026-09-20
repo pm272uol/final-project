@@ -1,0 +1,9 @@
+# Apple MLX Wan example, pinned by scripts/setup_video.py.
+mlx>=0.31.0,<0.32
+einops>=0.8.2,<0.9
+huggingface_hub>=0.34,<2
+numpy>=2,<3
+Pillow>=11,<13
+tokenizers>=0.21,<0.23
+torch>=2.6,<3
+tqdm>=4.67,<5

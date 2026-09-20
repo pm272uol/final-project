@@ -16,6 +16,7 @@ import { JsonPreview } from "@/components/JsonPreview";
 import { SceneInputForm } from "@/components/SceneInputForm";
 import { StartOverButton } from "@/components/StartOverButton";
 import { StoryboardOutput } from "@/components/StoryboardOutput";
+import { StoryboardVideo } from "@/components/StoryboardVideo";
 import { evaluateStoryboard } from "@/lib/evaluator";
 import { DEFAULT_INPUT } from "@/lib/storyboardOptions";
 import type {
@@ -475,6 +476,7 @@ export default function Home() {
                 onGeneratePanelImage={async panelNumber => { await generatePanelImage(panelNumber); }}
                 onGenerateAllImages={generateAllPanelImages}
               />
+              <StoryboardVideo key={`video-${outputRevision}`} storyboard={storyboard} />
               <details className="paper-card p-4"><summary className="cursor-pointer font-bold">Technical details</summary><div className="mt-4 space-y-4">
               <EvaluationPanel result={evaluation} />
               <JsonPreview data={storyboard} />

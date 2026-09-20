@@ -35,10 +35,12 @@
     ".next-e2e/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-build/types/**/*.ts"
+    ".next-build/types/**/*.ts",
+    ".next-video/types/**/*.ts"
   ],
   "exclude": [
     ".venv-asr",
+    ".venv-video",
     ".cache",
     "node_modules"
   ]
