@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ImageRefinement, type ImageRevisionActions } from "@/components/ImageRefinement";
 import { ZoomableImage } from "@/components/ZoomableImage";
+import { ImageGenerationPlaceholder } from "@/components/ImageGenerationPlaceholder";
 import type {
   GenerationMetadata,
   StoryboardPackage,
@@ -15,12 +16,14 @@ export function StoryboardOutput({
   onGenerateAllImages,
   imagesDisabled = false,
   imagesBusy,
+  batchGenerating = false,
   onCancelImages,
   onRefineImage,
   onSelectImage,
 }: {
   imagesDisabled?: boolean;
   imagesBusy: boolean;
+  batchGenerating?: boolean;
   onCancelImages: () => void;
   data: StoryboardPackage;
   metadata?: GenerationMetadata;
@@ -100,6 +103,7 @@ export function StoryboardOutput({
               onRefineImage={onRefineImage}
               onSelectImage={onSelectImage}
               imagesDisabled={imagesDisabled}
+              imagesQueued={batchGenerating}
               onGenerateImage={onGeneratePanelImage}
             />
           ))}
@@ -152,12 +156,14 @@ function PanelCard({
   onCopyStatus,
   onGenerateImage,
   imagesDisabled,
+  imagesQueued,
   onRefineImage,
   onSelectImage,
 }: {
   panel: StoryboardPackage["storyboard"][number];
   onCopyStatus: (message: string) => void;
   imagesDisabled: boolean;
+  imagesQueued: boolean;
   onGenerateImage: (panelNumber: number) => Promise<void>;
 } & ImageRevisionActions) {
   const [copied, setCopied] = useState(false);
@@ -194,6 +200,7 @@ function PanelCard({
         <PanelImage
           panel={panel}
           imagesDisabled={imagesDisabled}
+          imagesQueued={imagesQueued}
           onGenerateImage={onGenerateImage}
           onRefineImage={onRefineImage}
           onSelectImage={onSelectImage}
@@ -246,11 +253,13 @@ function PanelImage({
   panel,
   onGenerateImage,
   imagesDisabled,
+  imagesQueued,
   onRefineImage,
   onSelectImage,
 }: {
   panel: StoryboardPackage["storyboard"][number];
   imagesDisabled: boolean;
+  imagesQueued: boolean;
   onGenerateImage: (panelNumber: number) => Promise<void>;
 } & ImageRevisionActions) {
   const generating = panel.imageStatus === "generating";
@@ -265,7 +274,6 @@ function PanelImage({
     >
       {panel.imageNeedsReview && <p role="status" className="bg-acid px-3 py-2 text-sm">Direction changed · regenerate to update this image</p>}
       {failed && <p role="alert" className="p-2 text-rust">{panel.imageError}</p>}
-      {generating && <p role="status" className="p-2">{complete ? "Generating a new image…" : "Generating image…"}</p>}
       {panel.imageApproved && <p className="p-2">Image locked</p>}
       <div className="relative aspect-video">
         {complete ? (
@@ -274,22 +282,23 @@ function PanelImage({
             alt={`Generated storyboard image for panel ${panel.panelNumber}: ${panel.storyBeat}`}
             className="h-full w-full object-cover"
           />
-        ) : (
+        ) : !generating ? (
           <div className="grid h-full place-items-center bg-[linear-gradient(135deg,rgba(22,24,19,.08),transparent_60%)] p-6 text-center">
             <div>
               <span className="display text-5xl text-ink/20">
                 {String(panel.panelNumber).padStart(2, "0")}
               </span>
               <p className="mono mt-2 text-[10px] uppercase tracking-[0.16em] text-ink/50">
-                {generating
-                  ? "Rendering storyboard frame..."
-                  : failed
+                {failed
                     ? "Render failed"
+                    : imagesQueued && !panel.imageApproved
+                      ? "Waiting to generate"
                     : "Image not generated"}
               </p>
             </div>
           </div>
-        )}
+        ) : null}
+        {generating && <ImageGenerationPlaceholder label={complete ? "Generating a new image…" : "Generating image…"} />}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t-[1.5px] border-ink px-3 py-2">
         <div className={complete ? "sr-only" : "min-w-0"}>

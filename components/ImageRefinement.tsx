@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PanelImageVersion } from "@/lib/panelRevision";
 import type { StoryboardPanel } from "@/types/storyboard";
 import { ZoomableImage } from "@/components/ZoomableImage";
+import { ImageGenerationPlaceholder } from "@/components/ImageGenerationPlaceholder";
 
 export type ImageRevisionActions = {
   onRefineImage: (panelNumber: number, instructions: string | undefined, signal: AbortSignal) => Promise<PanelImageVersion>;
@@ -105,7 +106,7 @@ function RefinementDialog({ panel, disabled, mode, onRefineImage, onSelectImage,
 
   return <dialog ref={dialog} aria-labelledby="refinement-title" aria-describedby="refinement-description"
     onCancel={event => { event.preventDefault(); onClose(); }}
-    className={`m-auto max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto border-[1.5px] border-ink bg-paper p-5 text-ink shadow-xl backdrop:bg-black/50 sm:p-6 ${candidate ? "max-w-4xl" : "max-w-xl"}`}>
+    className={`m-auto max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto border-[1.5px] border-ink bg-paper p-5 text-ink shadow-xl backdrop:bg-black/50 sm:p-6 ${candidate || busy ? "max-w-4xl" : "max-w-xl"}`}>
     <div className="mb-5 flex items-start justify-between gap-4">
       <div>
         <p className="mono text-[10px] uppercase tracking-wider text-rust">Panel {panel.panelNumber}</p>
@@ -115,9 +116,14 @@ function RefinementDialog({ panel, disabled, mode, onRefineImage, onSelectImage,
       <button type="button" aria-label="Close image refinement" className="px-2 py-1 text-xl" onClick={onClose}>×</button>
     </div>
 
-    <div className={`grid gap-4 ${candidate ? "sm:grid-cols-2" : ""}`}>
-      <ComparisonImage label="Current" image={panel} compact={!candidate} />
-      {candidate && <ComparisonImage label={mode === "history" ? "Previous version" : "New version"} image={candidate} />}
+    <div className={`grid gap-4 ${candidate || busy ? "sm:grid-cols-2" : ""}`}>
+      <ComparisonImage label="Current" image={panel} compact={!candidate && !busy} />
+      {busy ? <div className="min-w-0">
+        <p className="mb-2 text-xs font-bold">New version</p>
+        <div className="relative aspect-video max-h-52 border border-ink/20" aria-busy="true">
+          <ImageGenerationPlaceholder label="Generating alternative…" />
+        </div>
+      </div> : candidate && <ComparisonImage label={mode === "history" ? "Previous version" : "New version"} image={candidate} />}
     </div>
 
     {mode === "history" && <>

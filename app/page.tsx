@@ -471,6 +471,7 @@ export default function Home() {
                 imagesDisabled={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}
                 onCancelImages={cancelImages}
                 imagesBusy={batchGenerating || storyboard.storyboard.some(p => p.imageStatus === "generating")}
+                batchGenerating={batchGenerating}
                 data={storyboard}
                 metadata={generationMetadata ?? undefined}
                 onGeneratePanelImage={async panelNumber => { await generatePanelImage(panelNumber); }}
