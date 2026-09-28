@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { beginDiagnostic } from "../diagnostics/server.ts";
 import { LLMError } from "./errors.ts";
 import type {
   LLMProvider,
@@ -62,7 +63,16 @@ export abstract class BaseLLMProvider implements LLMProvider {
       let invocation: LLMRequest = request;
       let result: LLMResponse | StructuredLLMResponse<T>;
       for (let attempt = 0; ; attempt++) {
-        const response = await this.invoke(invocation, jsonSchema);
+        const trace = beginDiagnostic(request.operation, this.providerName, this.modelName, {
+          attempt: attempt + 1, messages: invocation.messages, schema: jsonSchema,
+          temperature: invocation.temperature, maxTokens: invocation.maxTokens,
+          ...(this.providerName === "ollama" ? { contextWindow: invocation.contextWindow ?? 8192 } : {}),
+        });
+        let response: LLMResponse;
+        try {
+          response = await this.invoke(invocation, jsonSchema);
+          trace.output(response);
+        } catch (error) { trace.finish(error); throw error; }
         for (const key of ["inputTokens", "outputTokens", "totalTokens"] as const) {
           const value = response.usage?.[key];
           if (value !== undefined) record[key] = (record[key] ?? 0) + value;
@@ -86,6 +96,8 @@ export abstract class BaseLLMProvider implements LLMProvider {
             request.validate?.(parsed.data);
             result = { ...response, data: parsed.data };
           }
+          trace.output(result);
+          trace.finish();
           if (attempt > 0) {
             result.usage = { inputTokens: record.inputTokens, outputTokens: record.outputTokens, totalTokens: record.totalTokens };
             result.metrics = { ...response.metrics, durationMs: Math.round(performance.now() - start),
@@ -93,6 +105,7 @@ export abstract class BaseLLMProvider implements LLMProvider {
           }
           break;
         } catch (error) {
+          trace.finish(error);
           const invalidOutput = error instanceof Error && "code" in error && error.code === "INVALID_MODEL_RESPONSE";
           if (!("schema" in request) || !invalidOutput || attempt >= (request.repairAttempts ?? 0) || request.signal?.aborted) throw error;
           request.onProgress?.({ type: "status", message: "Correcting the storyboard format, then validating again…" });

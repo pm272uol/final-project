@@ -1,5 +1,6 @@
 "use client";
 
+import { diagnosticFetch } from "@/lib/diagnostics/client";
 import { useEffect, useRef, useState } from "react";
 import type { StoryboardPackage } from "@/types/storyboard";
 import { hasVideoImage, storyboardVideoShots, VIDEO_MODEL, VIDEO_PRESETS, type VideoJob, type VideoRequest } from "@/lib/video-generation/options";
@@ -20,7 +21,7 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
-    void fetch("/api/videos", { signal: controller.signal }).then(async response => {
+    void diagnosticFetch("/api/videos", { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error("Could not load video configuration.");
       const config = await response.json();
       if (!controller.signal.aborted) {
@@ -30,7 +31,7 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
     return () => {
       mounted.current = false;
       controller.abort();
-      if (currentJob.current) void fetch(`/api/videos/${currentJob.current}`, { method: "DELETE", keepalive: true }).catch(() => {});
+      if (currentJob.current) void diagnosticFetch(`/api/videos/${currentJob.current}`, { method: "DELETE", keepalive: true }).catch(() => {});
     };
   }, []);
 
@@ -41,7 +42,7 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
     const id = jobId;
     async function poll() {
       try {
-        const response = await fetch(`/api/videos/${id}`, { signal: controller.signal, cache: "no-store" });
+        const response = await diagnosticFetch(`/api/videos/${id}`, { signal: controller.signal, cache: "no-store" });
         const result = await response.json();
         if (controller.signal.aborted) return;
         if (response.status === 404) {
@@ -69,11 +70,11 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
     setError("");
     try {
       const shots = storyboardVideoShots({ ...storyboard, storyboard: previewOnly ? storyboard.storyboard.slice(0, 1) : storyboard.storyboard });
-      const response = await fetch("/api/videos", { method: "POST", headers: { "Content-Type": "application/json" },
+      const response = await diagnosticFetch("/api/videos", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quality, seed, shots }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not start video generation.");
-      if (!mounted.current) { await fetch(`/api/videos/${result.id}`, { method: "DELETE" }); return; }
+      if (!mounted.current) { await diagnosticFetch(`/api/videos/${result.id}`, { method: "DELETE" }); return; }
       currentJob.current = result.id;
       setJob(result);
     } catch (cause) {
@@ -84,7 +85,7 @@ export function StoryboardVideo({ storyboard }: { storyboard: StoryboardPackage 
   async function cancel() {
     if (!job) return;
     try {
-      const response = await fetch(`/api/videos/${job.id}`, { method: "DELETE" });
+      const response = await diagnosticFetch(`/api/videos/${job.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error();
       setJob(await response.json());
     } catch { setError("Could not cancel the video. Try Cancel again."); }

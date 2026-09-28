@@ -1,3 +1,5 @@
+import { diagnosticsEnabled, runWithDiagnostics } from "../diagnostics/server";
+import type { DiagnosticRecord } from "../diagnostics/types";
 import sharp from "sharp";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
@@ -9,7 +11,7 @@ import { VIDEO_MODEL, VIDEO_PRESETS, type VideoJob, type VideoRequest } from "./
 import { generateCloudClip, VideoError } from "./replicate";
 import { runVideoProcess } from "./process";
 
-type InternalJob = { view: VideoJob; controller: AbortController; directory: string };
+type InternalJob = { diagnostics?: DiagnosticRecord[]; view: VideoJob; controller: AbortController; directory: string };
 const globalJobs = globalThis as typeof globalThis & { storyboardVideoJobs?: Map<string, InternalJob> };
 const jobs = globalJobs.storyboardVideoJobs ??= new Map<string, InternalJob>();
 const root = () => path.resolve(process.env.VIDEO_OUTPUT_DIR ?? ".cache/videos");
@@ -20,8 +22,8 @@ export async function videoConfiguration() {
 }
 
 export function getVideoJob(id: string): VideoJob | undefined {
-  const view = jobs.get(id)?.view;
-  return view ? structuredClone(view) : undefined;
+  const job = jobs.get(id);
+  return job ? structuredClone({ ...job.view, ...(diagnosticsEnabled() && job.diagnostics ? { diagnostics: job.diagnostics } : {}) }) : undefined;
 }
 
 export function cancelVideoJob(id: string): VideoJob | undefined {
@@ -48,7 +50,12 @@ export async function startVideoJob(input: VideoRequest): Promise<VideoJob> {
   } };
   jobs.set(id, job);
   // This prototype requires one persistent Node server, not a serverless runtime.
-  void runJob(job, input);
+  if (diagnosticsEnabled()) {
+    job.diagnostics = [];
+    void runWithDiagnostics(job.diagnostics, () => runJob(job, input));
+  } else {
+    void runJob(job, input);
+  }
   return structuredClone(job.view);
 }
 

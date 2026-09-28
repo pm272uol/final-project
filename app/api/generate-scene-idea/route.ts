@@ -1,3 +1,4 @@
+import { diagnosticCall, withDiagnosticResponse } from "@/lib/diagnostics/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAppConfig } from "@/lib/config";
@@ -7,7 +8,9 @@ import { chooseSceneIdeaVariation, mockSceneIdea, sceneIdeaPrompt, sceneIdeaRequ
 
 const outputSchema = z.object({ sceneIdea: z.string().trim().min(1).max(200) }).strict();
 
-export async function POST(request: Request) {
+export const POST = withDiagnosticResponse(handlePost);
+
+async function handlePost(request: Request) {
   try {
     const body = await request.text();
     if (body.length > 16_384) return NextResponse.json({ error: "Scene idea request is too large." }, { status: 413 });
@@ -21,7 +24,8 @@ export async function POST(request: Request) {
     const config = getAppConfig();
     if (config.provider === "mock") {
       return NextResponse.json({
-        sceneIdea: mockSceneIdea(recentSuggestions),
+        sceneIdea: await diagnosticCall("scene_idea_generation", "mock", "deterministic-scene-idea",
+          { recentSuggestions, variation }, () => mockSceneIdea(recentSuggestions)),
         variation,
         mode: "mock",
       });

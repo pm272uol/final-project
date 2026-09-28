@@ -1,3 +1,4 @@
+import { withDiagnosticResponse } from "@/lib/diagnostics/server";
 import { getTranscriptionProvider } from "@/lib/transcription/config";
 import { NextResponse } from "next/server";
 import { MAX_AUDIO_BYTES } from "@/lib/transcription/options";
@@ -7,7 +8,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_REQUEST_BYTES = MAX_AUDIO_BYTES + 64 * 1024;
-export async function POST(request: Request) {
+export const POST = withDiagnosticResponse(handlePost);
+
+async function handlePost(request: Request) {
   try {
     const provider = getTranscriptionProvider();
     if (Number(request.headers.get("content-length")) > MAX_REQUEST_BYTES) {

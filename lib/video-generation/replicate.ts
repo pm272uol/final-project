@@ -1,3 +1,4 @@
+import { beginDiagnostic } from "../diagnostics/server";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { VIDEO_PRESETS, type VideoRequest } from "./options";
@@ -24,6 +25,8 @@ export async function generateCloudClip(shot: VideoRequest["shots"][number], qua
   const token = process.env.REPLICATE_API_TOKEN?.trim();
   if (!token) throw new VideoError("Cloud video needs REPLICATE_API_TOKEN on the server.", 503);
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const trace = beginDiagnostic(`video_generation_panel_${shot.panelNumber}`, "replicate", REPLICATE_VIDEO_MODEL,
+    { input: replicateVideoInput(shot, quality, seed) });
   let predictionId: string | undefined;
   let terminal = false;
   async function read(response: Response) {
@@ -48,6 +51,7 @@ export async function generateCloudClip(shot: VideoRequest["shots"][number], qua
     predictionId = prediction.id;
     for (;;) {
       signal.throwIfAborted();
+      trace.output(prediction);
       terminal = ["succeeded", "failed", "canceled"].includes(prediction.status);
       if (prediction.status === "succeeded") {
         if (!prediction.output) throw new VideoError("Replicate returned no video.");
@@ -56,12 +60,16 @@ export async function generateCloudClip(shot: VideoRequest["shots"][number], qua
           !(url.hostname === "replicate.delivery" || url.hostname.endsWith(".replicate.delivery"))) {
           throw new VideoError("Replicate returned an unsupported video location.");
         }
+        trace.finish();
         return url.href;
       }
       if (terminal) throw new VideoError(prediction.status === "canceled" ? "Cloud video was cancelled." : "Replicate could not generate this shot. Retry the preview.");
       await delay(2000, undefined, { signal });
       prediction = await read(await fetcher(`https://api.replicate.com/v1/predictions/${predictionId}`, { headers, signal }));
     }
+  } catch (error) {
+    trace.finish(error);
+    throw error;
   } finally {
     if (predictionId && !terminal) {
       try {

@@ -1,3 +1,4 @@
+import { withDiagnosticResponse } from "@/lib/diagnostics/server";
 import sharp from "sharp";
 import { randomInt } from "node:crypto";
 import { persistProviderImage } from "@/lib/image-generation/assets";
@@ -9,7 +10,9 @@ import { panelImageGenerationRequestSchema } from "@/lib/image-generation/schema
 import { ImageProviderError } from "@/lib/image-generation/types";
 import type { PanelImageGenerationResponse } from "@/types/storyboard";
 
-export async function POST(request: Request) {
+export const POST = withDiagnosticResponse(handlePost);
+
+async function handlePost(request: Request) {
   const config = getAppConfig();
   const contentLength = Number(request.headers.get("content-length") ?? "0");
 

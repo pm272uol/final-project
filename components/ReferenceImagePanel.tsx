@@ -1,5 +1,6 @@
 "use client";
 
+import { diagnosticFetch } from "@/lib/diagnostics/client";
 import { useEffect, useRef, useState } from "react";
 import {
   ACCEPTED_REFERENCE_TYPES,
@@ -153,7 +154,7 @@ export function ReferenceImagePanel({
       });
       formData.set("instructions", instructions);
 
-      const response = await fetch("/api/analyze-references", {
+      const response = await diagnosticFetch("/api/analyze-references", {
         method: "POST",
         body: formData,
       });

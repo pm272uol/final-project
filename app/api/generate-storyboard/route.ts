@@ -92,6 +92,7 @@ function createStreamingResponse(
           } else {
             send({
               type: "error",
+              ...(payload.diagnostics ? { diagnostics: payload.diagnostics } : {}),
               error:
                 typeof payload.error === "string"
                   ? payload.error

@@ -1,5 +1,6 @@
 "use client";
 
+import { diagnosticFetch } from "@/lib/diagnostics/client";
 import { MicrophoneRecorder } from "@/components/MicrophoneRecorder";
 import { useEffect, useRef, useState } from "react";
 import { AUDIO_ACCEPT, MAX_AUDIO_BYTES, type TranscriptionProvider, type TranscriptionResult } from "@/lib/transcription/options";
@@ -47,7 +48,7 @@ function VoiceNoteDialog({ disabled, remainingChars, onAppend, onClose }: Props 
     const configController = new AbortController();
     void (async () => {
       try {
-        const response = await fetch("/api/transcribe/config", { cache: "no-store", signal: configController.signal });
+        const response = await diagnosticFetch("/api/transcribe/config", { cache: "no-store", signal: configController.signal });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error ?? "Transcription is unavailable.");
         if (data.provider !== "local" && data.provider !== "groq") throw new Error("Transcription is unavailable.");
@@ -74,7 +75,7 @@ function VoiceNoteDialog({ disabled, remainingChars, onAppend, onClose }: Props 
     try {
       const body = new FormData();
       body.append("file", audio);
-      const response = await fetch("/api/transcribe", { method: "POST", body, signal: active.signal });
+      const response = await diagnosticFetch("/api/transcribe", { method: "POST", body, signal: active.signal });
       const data = await response.json();
       if (active.signal.aborted) return;
       if (!response.ok) throw new Error(data.error ?? "Transcription failed.");

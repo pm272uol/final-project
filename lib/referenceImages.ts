@@ -1,3 +1,4 @@
+import { diagnosticCall } from "./diagnostics/server";
 import { createLLMProvider } from "./llm/create-provider";
 import type { AppConfig } from "@/lib/config";
 import { REFERENCE_PURPOSES } from "@/lib/referenceImageOptions";
@@ -17,7 +18,9 @@ export async function analyzeReferenceImages(
   } = {},
 ) {
   if (config.provider === "mock") {
-    return createMockVisualSummary(images, instructions);
+    return diagnosticCall("image_analysis", "mock", "deterministic-visual-summary",
+      { prompt: buildVisualSummaryPrompt(images, instructions), images: images.map(image => ({ purpose: image.purpose, bytes: image.bytes.length })) },
+      () => createMockVisualSummary(images, instructions));
   }
 
   const llm = createLLMProvider(

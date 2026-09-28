@@ -1,3 +1,4 @@
+import { diagnosticCall } from "../diagnostics/server";
 import type { ImageGenerationService } from "@/lib/image-generation/types";
 
 export class MockImageGenerationService implements ImageGenerationService {
@@ -18,7 +19,7 @@ export class MockImageGenerationService implements ImageGenerationService {
     const height = options.height ?? 576;
     const seed = options.seed ?? stableSeed(prompt);
 
-    return {
+    return diagnosticCall("image_generation", this.name, this.model, { prompt, options }, () => ({
       imageUrl: `/api/mock-panel-image?seed=${seed}`,
       provider: this.name,
       model: this.model,
@@ -29,7 +30,7 @@ export class MockImageGenerationService implements ImageGenerationService {
       height,
       generatedAt: new Date().toISOString(),
       durationMs: Math.round(performance.now() - startedAt),
-    };
+    }));
   }
 }
 

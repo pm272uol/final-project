@@ -1,3 +1,4 @@
+import { withDiagnosticResponse } from "./diagnostics/server";
 import { resolveShotReferences } from "@/lib/image-generation/promptBuilder";
 import { createVisualBible } from "@/lib/visualBible";
 import { NextResponse } from "next/server";
@@ -22,7 +23,9 @@ type GenerateStoryboardOptions = {
   onProgress?: (progress: StoryboardProviderProgress) => void;
 };
 
-export async function createGenerateStoryboardResponse(
+export const createGenerateStoryboardResponse = withDiagnosticResponse(generateStoryboardResponse);
+
+async function generateStoryboardResponse(
   body: unknown,
   options: GenerateStoryboardOptions = {},
 ) {

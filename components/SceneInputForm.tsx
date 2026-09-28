@@ -1,5 +1,6 @@
 "use client";
 
+import { diagnosticFetch } from "@/lib/diagnostics/client";
 import { useEffect, useRef, useState } from "react";
 import {
   DURATIONS,
@@ -63,7 +64,7 @@ export function SceneInputForm({
     setGeneratingIdea(true);
     setIdeaError("");
     try {
-      const response = await fetch("/api/generate-scene-idea", {
+      const response = await diagnosticFetch("/api/generate-scene-idea", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recentSuggestions: recentIdeas.current }),

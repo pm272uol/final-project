@@ -1,3 +1,4 @@
+import { diagnosticCall } from "../diagnostics/server";
 import { createMockStoryboard } from "@/lib/mockStoryboard";
 import type {
   StoryboardGenerationContext,
@@ -19,7 +20,7 @@ export class MockStoryboardProvider implements StoryboardProvider {
       message: "Building the deterministic storyboard...",
     });
 
-    return {
+    return diagnosticCall("scene_generation", this.name, this.model, input, () => ({
       storyboard: createMockStoryboard(input),
       metadata: {
         mode: "mock" as const,
@@ -27,6 +28,6 @@ export class MockStoryboardProvider implements StoryboardProvider {
         model: this.model,
         durationMs: Math.round(performance.now() - startedAt),
       },
-    };
+    }));
   }
 }

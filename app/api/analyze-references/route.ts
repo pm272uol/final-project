@@ -1,3 +1,4 @@
+import { withDiagnosticResponse } from "@/lib/diagnostics/server";
 import { NextResponse } from "next/server";
 import { getAppConfig } from "@/lib/config";
 import {
@@ -12,7 +13,9 @@ import {
   type ReferenceImageInput,
 } from "@/lib/referenceImages";
 
-export async function POST(request: Request) {
+export const POST = withDiagnosticResponse(handlePost);
+
+async function handlePost(request: Request) {
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (contentLength > MAX_REFERENCE_REQUEST_BYTES) {
     return errorResponse(

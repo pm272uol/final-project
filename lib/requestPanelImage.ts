@@ -1,3 +1,4 @@
+import { diagnosticFetch } from "@/lib/diagnostics/client";
 import { generatedStoryboardPanelSchema } from "@/lib/storyboardSchema";
 import type { PanelImageGenerationRequest, PanelImageGenerationResponse, StoryboardImageContext, StoryboardPackage, StoryboardPanel } from "@/types/storyboard";
 
@@ -8,7 +9,7 @@ export async function requestPanelImage(
   signal: AbortSignal,
   refinement?: PanelImageGenerationRequest["refinement"],
 ): Promise<Partial<StoryboardPanel>> {
-  const response = await fetch("/api/generate-panel-image", {
+  const response = await diagnosticFetch("/api/generate-panel-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

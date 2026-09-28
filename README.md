@@ -17,7 +17,7 @@ claim that final comparative model selection or human evaluation is complete.
 | Structured output | Zod 4 validates inputs, model JSON, and saved packages. Storyboard generation checks panel count and sequence and allows one correction attempt with the same model before returning invalid-output errors. |
 | Panel rendering | Deterministic mock images by default; hosted FLUX.2 Klein 4B on Replicate for reference-conditioned rendering. Sharp resizes reference inputs and processes image assets on the server. |
 | Voice notes | Whisper Large-v3-Turbo: local `mlx-whisper` through a Python worker on Apple Silicon, or hosted Groq transcription. English, completed-recording transcription with editable results. |
-| Experimental video | Wan 2.2 5B Fast on Replicate. Animate rendered panel images at 480p or 720p, preview a shot, or download a stitched silent MP4. |
+| Experimental video API | Wan 2.2 5B Fast on Replicate. Backend support is retained but is not exposed in the UI. |
 | Workspace | Storyboards and generated images live in the current page session. Project storage and autosave controls are not part of the workspace. No application database or account service is required. |
 | Export | A4 production PDFs using lazy-loaded jsPDF, available below the generated storyboard. |
 | Verification | Vitest for unit/API tests, Playwright with Chromium for browser workflows, ESLint, and TypeScript. Separate CLIs cover local model benchmarks and application-level local/hosted comparisons. |
@@ -55,7 +55,7 @@ LLM_PROVIDER= STORYBOARD_PROVIDER=mock IMAGE_PROVIDER=mock npm run dev
 
 The empty `LLM_PROVIDER` lets the explicit mock setting take precedence over a
 value in an environment file. Voice transcription still requires the separate
-[local Python/FFmpeg setup or Groq configuration](docs/transcription.md).
+[local Python/FFmpeg setup or Groq configuration](#english-voice-notes).
 
 ## Prototype boundaries
 
@@ -80,8 +80,8 @@ The in-app evaluator checks package completeness with an 85% pass threshold.
 It does not establish creative quality, visual consistency, or production usefulness;
 those require human assessment and separate experiments.
 
-See [docs/ollama-integration.md](docs/ollama-integration.md) for configuration,
-fallback behavior, and integration-test instructions.
+See [LLM Backends](#llm-backends) for configuration, fallback behavior, and
+integration-test commands.
 
 ## Image generation
 
@@ -125,16 +125,9 @@ channel. Provider outputs are fetched and embedded before returning to the brows
 The application fixes hosted rendering to Klein even if a legacy `REPLICATE_MODEL`
 value names another model. There is no automatic image-model fallback. Cost
 estimates require `IMAGE_ESTIMATE_USD_PER_IMAGE` and `IMAGE_ESTIMATE_PRICE_BASIS`;
-otherwise hosted cost remains unknown. See [model choice, local execution and
-limitations](docs/reference-image-workflow.md) for the recorded selection evidence.
+otherwise hosted cost remains unknown.
 
 ## Storyboard workflow
-
-An experimental **Storyboard to video** section animates rendered panel images
-with **Wan 2.2 5B Fast on Replicate**. Preview one shot before rendering the whole
-board at 480p or 720p. Inference is cloud-only; FFmpeg and a persistent Node server
-assemble the clips into a silent MP4. No local video model is needed.
-See [video setup and limitations](docs/video-generation.md).
 
 Describe the scene, choose the scene settings, and generate a storyboard. Generate
 all missing images or render individual shots. The first successfully generated
@@ -223,21 +216,11 @@ npm run eval -- report evaluation/results/<run-directory>
 npm run eval --
 ```
 
-See the [evaluator quick start](evaluation/README.md) for candidate downloads,
-VLM image requirements, resume behavior, configuration rules, and result files.
+Evaluation configurations are in `evaluation/configs/`; inspect the selected
+configuration and run its doctor command before starting an evaluation.
 
 The unit and API suite uses Vitest. The browser workflow and responsive layout
 checks use Playwright with Chromium.
-
-## Design documentation
-
-- [Runtime schema validation](docs/schema-validation.md)
-- [Storyboard evaluation and scoring](docs/evaluation.md)
-- [Model evaluation tool, local/cloud policy, and download plan](docs/model-evaluation-tool.md)
-- [Image-generation architecture and limitations](docs/image-generation.md)
-- [Reference-conditioning model choice and recorded evidence](docs/reference-image-workflow.md)
-- [Voice transcription setup and deployment constraints](docs/transcription.md)
-- [Creative tools, persistence, exports, and estimate methodology](docs/additional-features.md)
 
 ## LLM Backends
 
@@ -344,5 +327,34 @@ Shared prompts do not guarantee visual consistency in generated images.
 Click **Record scene idea** to record, stop and review in a modal. Saved voice-note
 uploads are available inside the modal. Set `ASR_PROVIDER=local` (default) or
 `ASR_PROVIDER=groq` in `.env` and restart the server to choose the transcription backend.
-See [transcription setup and limitations](docs/transcription.md) for the local
-Python/model installation and server-side `GROQ_API_KEY` configuration.
+For local transcription on Apple Silicon, install FFmpeg and use Python 3.11 or
+3.12. From the repository root:
+
+```bash
+python3.11 -m venv .venv-asr
+.venv-asr/bin/python -m pip install -r scripts/requirements-asr.txt
+HF_HOME="$PWD/.cache/whisper" .venv-asr/bin/python -c 'from huggingface_hub import snapshot_download; snapshot_download("mlx-community/whisper-large-v3-turbo")'
+```
+
+The worker uses `.venv-asr/bin/python` and `.cache/whisper` by default; override
+these with `ASR_PYTHON` and `HF_HOME` if needed. Download the model before starting
+transcription: requests run offline. FFmpeg must be available on the server's
+PATH. Local mode runs one transcription at a time and requires a Node server with
+access to the Python environment and model cache.
+
+For hosted transcription, set `ASR_PROVIDER=groq` and `GROQ_API_KEY` in the
+server's ignored environment file, then restart the app. Recordings are sent to
+Groq only when that provider is configured. Both providers use English
+Whisper Large-v3-Turbo transcription; review the transcript before adding it to
+the scene idea. Microphone access requires HTTPS or localhost.
+
+
+### Workflow diagnostics for reports
+
+Set `WORKFLOW_DEBUG=true` in `.env`, then restart the app. The small **Workflow diagnostics** icon on the right of the footer opens a view of model calls made in the current browser tab. The default is `false`; disabled API responses do not include diagnostic records. This is a server-side flag, so a browser cannot turn capture on itself.
+
+Run the steps you want to document: voice transcription, scene suggestions, reference-image analysis, storyboard generation, panel rendering/refinement, and cloud video. Each record includes its operation, provider, model, timestamp, duration, input and output. Language-model records include the full messages and requested JSON schema, raw response text, validated data where applicable, and available usage metrics. A failed validation and its correction appear as separate attempts. Image records include the final provider prompt and inference settings; video records arrive as the job is polled. Mock records are explicitly labelled and represent deterministic application output rather than model inference.
+
+Use **Copy this step**, **Copy input and prompts**, or **Copy output** for individual examples, **Copy report Markdown** for a report appendix, or **Download JSON** for a structured record. If clipboard access is unavailable, the panel provides selectable text. Binary image data is replaced with its media type, byte count and SHA-256 fingerprint; transcription inputs show audio file metadata. Prompts and textual model output are preserved. Credentials and HTTP headers are not captured.
+
+Records remain in memory for the current tab and clear on reload; export them before closing the app. **Clear diagnostics** starts a fresh collection. Existing results from before debug mode was enabled cannot be reconstructed. Enable this flag only when you intend app users to receive workflow content in API responses, and turn it off after collecting your examples.

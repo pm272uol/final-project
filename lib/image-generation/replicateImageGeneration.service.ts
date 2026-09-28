@@ -1,3 +1,4 @@
+import { beginDiagnostic } from "../diagnostics/server";
 import sharp from "sharp";
 import { referenceSheet } from "./referenceSheet";
 import {
@@ -57,6 +58,7 @@ export class ReplicateImageGenerationService
       const roles = (options.references ?? []).map((ref, index) => `Image ${index + 1}: ${ref.purpose === "composition" ? "use this as the composition reference; preserve its layout and subjects except for the explicitly requested changes" : ref.purpose === "style" ? "use only its visual medium, palette and texture; create the requested new camera angle, setting and subjects" : `preserve the ${ref.purpose} appearance of ${ref.entityId ?? "the depicted subject"} only when visible in the requested shot`}.`).join(" ");
       prompt = `${prompt} ${roles} Create one storyboard frame, not a collage. ${options.negativePrompt ? `Avoid: ${options.negativePrompt}` : ""}`.trim();
     }
+    const trace = beginDiagnostic("image_generation", this.name, this.model, { prompt, options });
     const startedAt = performance.now();
     const width = options.width ?? 1024;
     const height = options.height ?? 576;
@@ -74,35 +76,37 @@ export class ReplicateImageGenerationService
       })) : [];
       const styleImage = this.model === "fofr/style-transfer" ? await referenceSheet(options.references ?? []) : undefined;
       const version = await this.resolveVersion(combinedSignal);
+      const providerInput = {
+        version,
+        input: klein ? {
+          prompt, images: nativeImages,
+          aspect_ratio: "16:9", output_megapixels: "0.5", output_format: "png",
+          go_fast: true, seed: options.seed,
+        } : this.model === "fofr/style-transfer" ? {
+          prompt, negative_prompt: options.negativePrompt,
+          style_image: styleImage,
+          structure_image: options.references?.find(r => r.purpose === "composition")?.imageUrl,
+          model: "fast", width, height, seed: options.seed,
+          number_of_images: 1, output_format: "png", output_quality: 100,
+          structure_denoising_strength: 0.85,
+        } : {
+          prompt,
+          negative_prompt: options.negativePrompt,
+          width,
+          height,
+          num_inference_steps: options.steps ?? 30,
+          guidance_scale: options.guidanceScale ?? 7,
+          seed: options.seed,
+          num_outputs: 1,
+        },
+      };
+      trace.input({ ...providerInput, references: options.references?.map(({ id, purpose, entityId, version }) => ({ id, purpose, entityId, version })) });
       const response = await this.fetchImplementation(
         "https://api.replicate.com/v1/predictions",
         {
           method: "POST",
           headers: this.headers({ Prefer: "wait=60" }),
-          body: JSON.stringify({
-            version,
-            input: klein ? {
-              prompt, images: nativeImages,
-              aspect_ratio: "16:9", output_megapixels: "0.5", output_format: "png",
-              go_fast: true, seed: options.seed,
-            } : this.model === "fofr/style-transfer" ? {
-              prompt, negative_prompt: options.negativePrompt,
-              style_image: styleImage,
-              structure_image: options.references?.find(r => r.purpose === "composition")?.imageUrl,
-              model: "fast", width, height, seed: options.seed,
-              number_of_images: 1, output_format: "png", output_quality: 100,
-              structure_denoising_strength: 0.85,
-            } : {
-              prompt,
-              negative_prompt: options.negativePrompt,
-              width,
-              height,
-              num_inference_steps: options.steps ?? 30,
-              guidance_scale: options.guidanceScale ?? 7,
-              seed: options.seed,
-              num_outputs: 1,
-            },
-          }),
+          body: JSON.stringify(providerInput),
           signal: combinedSignal,
         },
       );
@@ -116,6 +120,7 @@ export class ReplicateImageGenerationService
         initialPrediction,
         combinedSignal,
       );
+      trace.output(prediction);
       assertPredictionSucceeded(prediction);
       const imageUrl = getOutputUrl(prediction.output);
 
@@ -128,6 +133,7 @@ export class ReplicateImageGenerationService
         );
       }
 
+      trace.finish();
       return {
         imageUrl,
         modelVersion: version,
@@ -143,6 +149,7 @@ export class ReplicateImageGenerationService
         durationMs: Math.round(performance.now() - startedAt),
       };
     } catch (error) {
+      trace.finish(error);
       if (error instanceof ImageProviderError) throw error;
       if (error instanceof SyntaxError) throw new ImageProviderError("IMAGE_PROVIDER_INVALID_RESPONSE", "Replicate returned malformed JSON.", error);
       if (combinedSignal.aborted) {

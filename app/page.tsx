@@ -1,5 +1,7 @@
 "use client";
 
+import { diagnosticFetch, collectDiagnostics } from "@/lib/diagnostics/client";
+import { WorkflowDiagnostics } from "@/components/WorkflowDiagnostics";
 import { requestPanelImage } from "@/lib/requestPanelImage";
 import { sceneImageReferences, uploadedVisualReferences } from "@/lib/image-generation/sceneReferences";
 import type { ReferenceImageDraft } from "@/components/ReferenceImagePanel";
@@ -16,7 +18,6 @@ import { JsonPreview } from "@/components/JsonPreview";
 import { SceneInputForm } from "@/components/SceneInputForm";
 import { StartOverButton } from "@/components/StartOverButton";
 import { StoryboardOutput } from "@/components/StoryboardOutput";
-import { StoryboardVideo } from "@/components/StoryboardVideo";
 import { evaluateStoryboard } from "@/lib/evaluator";
 import { DEFAULT_INPUT } from "@/lib/storyboardOptions";
 import type {
@@ -35,7 +36,7 @@ export default function Home() {
   const [estimateConfig, setEstimateConfig] = useState<ImageEstimateConfig | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/image-estimate-config", { signal: controller.signal, cache: "no-store" }).then(async response => {
+    void diagnosticFetch("/api/image-estimate-config", { signal: controller.signal, cache: "no-store" }).then(async response => {
       if (!response.ok) return; const parsed = imageEstimateConfigSchema.safeParse(await response.json());
       if (parsed.success && !controller.signal.aborted) setEstimateConfig(parsed.data);
     }).catch(() => {});
@@ -144,7 +145,7 @@ export default function Home() {
     generationController.current = controller;
 
     try {
-      const response = await fetch("/api/generate-storyboard", {
+      const response = await diagnosticFetch("/api/generate-storyboard", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -393,8 +394,7 @@ export default function Home() {
 
       <header className="border-b-[1.5px] border-ink bg-paper/75 px-5 py-7 sm:px-8">
         <div className="mx-auto max-w-[1500px]">
-          <h1 className="display text-4xl sm:text-5xl">Your next scene, frame by frame.</h1>
-          <p className="mt-3 text-sm text-ink/65">Describe a scene. Build your storyboard. Bring the shots to life.</p>
+          <h1 className="display text-4xl sm:text-5xl">Concept Art &amp; Storyboard Orchestrator</h1>
         </div>
       </header>
 
@@ -477,7 +477,6 @@ export default function Home() {
                 onGeneratePanelImage={async panelNumber => { await generatePanelImage(panelNumber); }}
                 onGenerateAllImages={generateAllPanelImages}
               />
-              <StoryboardVideo key={`video-${outputRevision}`} storyboard={storyboard} />
               <details className="paper-card p-4"><summary className="cursor-pointer font-bold">Technical details</summary><div className="mt-4 space-y-4">
               <EvaluationPanel result={evaluation} />
               <JsonPreview data={storyboard} />
@@ -491,9 +490,12 @@ export default function Home() {
       </div>
 
       <footer className="border-t-[1.5px] border-ink bg-ink px-5 py-5 text-paper sm:px-8">
-        <div className="mono mx-auto flex max-w-[1500px] flex-wrap justify-between gap-3 text-[10px] uppercase tracking-wider text-paper/55">
+        <div className="mono mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3 text-[10px] uppercase tracking-wider text-paper/55">
           <span>Concept Art & Storyboard Orchestrator</span>
-          <span>From scene idea to storyboard</span>
+          <div className="ml-auto flex items-center gap-3">
+            <span>From scene idea to storyboard</span>
+            <WorkflowDiagnostics />
+          </div>
         </div>
       </footer>
     </main>
@@ -534,7 +536,9 @@ async function readGenerationStream(
 
   const processLine = (line: string) => {
     if (!line.trim()) return;
-    onEvent(JSON.parse(line) as StoryboardGenerationStreamEvent);
+    const event = JSON.parse(line);
+    collectDiagnostics(event.type === "complete" ? event.data : event);
+    onEvent(event as StoryboardGenerationStreamEvent);
   };
 
   while (true) {

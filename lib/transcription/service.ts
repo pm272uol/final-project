@@ -1,3 +1,4 @@
+import { beginDiagnostic } from "../diagnostics/server";
 import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -23,6 +24,8 @@ export async function transcribe(
   }
   const timeout = AbortSignal.timeout(timeoutMs);
   const combined = AbortSignal.any([signal, timeout]);
+  const trace = beginDiagnostic("transcription", provider, provider === "local" ? "mlx-community/whisper-large-v3-turbo" : "whisper-large-v3-turbo",
+    { file: { name: file.name, mediaType: file.type, bytes: file.size }, language: "en", temperature: 0, ...(provider === "local" ? { task: "transcribe", condition_on_previous_text: false } : { response_format: "json" }) });
   const start = Date.now();
   try {
     combined.throwIfAborted();
@@ -48,13 +51,16 @@ export async function transcribe(
     } else {
       payload = await transcribeLocal(file, combined);
     }
+    trace.output(payload);
     const parsed = responseSchema.safeParse(payload);
     if (!parsed.success) throw new TranscriptionError("No usable transcript was returned. Try a clearer recording.");
+    trace.finish();
     return {
       text: parsed.data.text, provider, language: "en", durationMs: Date.now() - start,
       model: provider === "local" ? "mlx-community/whisper-large-v3-turbo" : "whisper-large-v3-turbo",
     };
   } catch (error) {
+    trace.finish(error);
     if (signal.aborted) throw new TranscriptionError("Transcription cancelled.", 499);
     if (timeout.aborted) throw new TranscriptionError("Transcription timed out. Try a shorter recording.", 504);
     if (error instanceof TranscriptionError) throw error;

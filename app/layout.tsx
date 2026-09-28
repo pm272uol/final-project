@@ -1,5 +1,9 @@
+import { WorkflowDiagnosticsProvider } from "@/components/WorkflowDiagnostics";
+import { diagnosticsEnabled } from "@/lib/diagnostics/server";
 import type { Metadata } from "next";
 import "./globals.css";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Concept Art & Storyboard Orchestrator",
@@ -11,7 +15,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><WorkflowDiagnosticsProvider enabled={diagnosticsEnabled()}>{children}</WorkflowDiagnosticsProvider></body>
     </html>
   );
 }
